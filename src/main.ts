@@ -3,12 +3,17 @@
 import './style.css';
 import { NAMES, startWater, type Scene, type Time } from './water/scene';
 import { startFish } from './water/fish';
-import { load, save, type Settings } from './settings';
+import { load, save, valid, type Settings } from './settings';
 import { timeAt } from './time';
 
 const $ = <T extends HTMLElement>(selector: string) => document.querySelector<T>(selector)!;
 
 let settings = await load();
+// The page's address can set them for this tab alone, unsaved (as the store's screenshots do):
+// newtab.html?scene=pond&time=night&clock=0&search=0
+const query = new URLSearchParams(location.search);
+const flag = (name: string) => (query.has(name) ? query.get(name) !== '0' : undefined);
+settings = { ...settings, ...valid({ scene: query.get('scene'), time: query.get('time'), clock: flag('clock'), search: flag('search') }) };
 const pick = (): Scene => (settings.scene === 'random' ? NAMES[Math.floor(Math.random() * NAMES.length)] : settings.scene);
 const timeNow = (): Time => (settings.time === 'auto' ? timeAt(settings.dayFrom, settings.nightFrom) : settings.time);
 

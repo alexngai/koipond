@@ -24,14 +24,17 @@ const VALID: { [K in keyof Settings]: (v: unknown) => boolean } = {
   search: (v) => typeof v === 'boolean',
 };
 
+// Just the fields of `o` that are valid settings.
+export const valid = (o: unknown): Partial<Settings> =>
+  Object.fromEntries(Object.entries(o && typeof o === 'object' ? o : {}).filter(([k, v]) => k in VALID && VALID[k as keyof Settings](v)));
+
 const KEY = 'settings';
 const sync = typeof chrome !== 'undefined' ? chrome.storage?.sync : undefined;
 
 export async function load(): Promise<Settings> {
   try {
     const saved: unknown = sync ? (await sync.get(KEY))[KEY] : JSON.parse(localStorage.getItem(KEY) ?? 'null');
-    const known = Object.entries(saved && typeof saved === 'object' ? saved : {}).filter(([k, v]) => k in VALID && VALID[k as keyof Settings](v));
-    return { ...DEFAULTS, ...Object.fromEntries(known) };
+    return { ...DEFAULTS, ...valid(saved) };
   } catch {
     return { ...DEFAULTS };
   }

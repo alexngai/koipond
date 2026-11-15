@@ -1,8 +1,15 @@
 {
   "manifest_version": 3,
-  "name": "Koi Pond",
-  "description": "A living water scene on every new tab: a coral reef, a mountain stream or a koi pond, by day or night.",
-  "version": "0.1.0",
+  "name": "Koi Pond Simulator",
+  "description": "A living koi pond on every new tab, or a coral reef or mountain stream, by day or night. Optional clock and search.",
+  "version": "1.0.0",
+  "minimum_chrome_version": "105",
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
   "chrome_url_overrides": { "newtab": "newtab.html" },
   "permissions": ["storage", "search"]
 }
