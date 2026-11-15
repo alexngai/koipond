@@ -75,13 +75,11 @@ class Fish {
     this.amplitude = ((rand(80, 120) / 100) * 3 * this.size) / 5;
   }
 
+  // Straight out behind the head, against its heading. (Each segment keeps to the side of the one
+  // before it that it starts on, so a body laid out ahead would stay folded until the head had
+  // swum back through it.)
   initSegments() {
-    const a = Math.atan2(this.heading.y, this.heading.x);
-    this.segments = [{ x: this.x, y: this.y }];
-    for (let i = 1; i < this.body.length; i++) {
-      const p = this.segments[i - 1];
-      this.segments.push({ x: p.x + this.size * Math.cos(a), y: p.y + this.size * Math.sin(a) });
-    }
+    this.segments = Array.from({ length: this.body.length }, (_, i) => sub(this, mul(this.heading, i * this.size)));
     this.shape = this.segments;
   }
 
