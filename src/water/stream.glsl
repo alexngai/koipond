@@ -184,11 +184,14 @@ vec2 gather(vec2 p) {
 
 // Caustics carried by the current: two copies of the pattern, each pushed along the flow and
 // reset every cycle, half a cycle apart and crossfaded so neither reset ever shows (a flow map).
+// Each reset jumps to another patch of the pattern, within 100 cells: left to run on, the jumps
+// carried it ever further out, and after half an hour or so hash()'s sin() ran out of float
+// precision there and the cells lined up in a square grid.
 float flowingCaustics(vec2 p, vec2 v) {
   float t = u_time / 2.0; // 2 s cycles
   float a = fract(t), b = fract(t + 0.5);
-  float c1 = caustics(p - v * a * 2.0 + 7.31 * floor(t), 0.024);
-  float c2 = caustics(p - v * b * 2.0 + 7.31 * floor(t + 0.5) + 3.1, 0.024);
+  float c1 = caustics(p - v * a * 2.0 + mod(7.31 * floor(t), 100.0), 0.024);
+  float c2 = caustics(p - v * b * 2.0 + mod(7.31 * floor(t + 0.5), 100.0) + 3.1, 0.024);
   return mix(c1, c2, abs(1.0 - 2.0 * a));
 }
 
