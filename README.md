@@ -1,10 +1,11 @@
-# Koi Pond
+# Koi Pond Simulator
 
 A Chrome extension that puts a living water scene on every new tab: a coral reef, a mountain stream
 or a koi pond, by day or by night, with fish that swim away from your cursor. Over it, a clock and a
 search box (each optional), and a settings dialog behind the gear in the corner.
 
-Ported from the About page of [alexngai.github.io](https://github.com/alexngai/portfolio).
+Version 1.0 is a rebuild of the 2019 Koi Pond Simulator (Manifest V2, taken down with it), ported
+from the About page of [alexngai.github.io](https://github.com/alexngai/portfolio).
 
 ## Settings
 
@@ -21,7 +22,13 @@ npm install
 npm run dev     # the page on its own at http://localhost:5173/newtab.html (settings in localStorage)
 npm test        # the day/night timing
 npm run build   # type-checks, then builds the extension into dist/
+npm run zip     # builds, then packs dist/ into release/koi-pond-simulator-<version>.zip for the store
+npm run store   # builds, then renders the icons and the store's screenshots and promo tile (needs
+                # Google Chrome and Pillow)
 ```
+
+The page's address can set the scene, time of day, clock and search box for that tab alone:
+`newtab.html?scene=pond&time=night&clock=0&search=0`.
 
 To try the extension: build, open `chrome://extensions`, turn on Developer mode, then
 **Load unpacked** and pick `dist/`. After rebuilding, press the reload icon on its card. The first
@@ -35,4 +42,8 @@ time a new tab opens, Chrome asks whether to keep the change: keep it.
 - `src/water/`: the scenes. `scene.ts` runs the WebGL water (`*.glsl`, one shader per scene,
   crossfaded), `fish.ts` the schools of fish, and `stream.ts`, `reef.ts`, `pond.ts` each scene's
   extras (the stream's boulders, leaves and bubbles, the reef's coral, the pond's lilies and rain).
-- `public/manifest.json`: the extension's manifest (Manifest V3), copied into `dist/` as is.
+- `public/manifest.json`: the extension's manifest (Manifest V3), copied into `dist/` as is. Its
+  `version` names the zip; raise it for each store upload.
+- `store/`: what the Chrome Web Store needs: the listing and privacy answers (`listing.md`), a
+  privacy policy, screenshots, the promo tile, the icon's source (`icon.svg`) and `render.py`, which
+  renders them.
