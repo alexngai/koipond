@@ -1,5 +1,5 @@
 // The new tab page: the water and its fish, a clock and a search box over them, and a settings
-// dialog behind the gear.
+// dialog behind the gear, and a button beside it that rerolls the random layout.
 import './style.css';
 import { NAMES, startWater, type Scene, type Time } from './water/scene';
 import { startFish } from './water/fish';
@@ -20,6 +20,13 @@ const timeNow = (): Time => (settings.time === 'auto' ? timeAt(settings.dayFrom,
 let time = timeNow();
 const water = startWater({ scene: pick(), time });
 startFish();
+
+// The button beside the gear lays the water out afresh (without WebGL there's nothing to reroll).
+const reroll = $<HTMLButtonElement>('[data-reroll]');
+if (water) {
+  reroll.hidden = false;
+  reroll.addEventListener('click', water.reroll);
+}
 
 // The clock, and the time of day when it's set by the clock: checked every second, eased into when
 // it turns.

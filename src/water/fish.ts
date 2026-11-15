@@ -75,13 +75,11 @@ class Fish {
     this.amplitude = ((rand(80, 120) / 100) * 3 * this.size) / 5;
   }
 
+  // Straight out behind the head, against its heading. (Each segment keeps to the side of the one
+  // before it that it starts on, so a body laid out ahead would stay folded until the head had
+  // swum back through it.)
   initSegments() {
-    const a = Math.atan2(this.heading.y, this.heading.x);
-    this.segments = [{ x: this.x, y: this.y }];
-    for (let i = 1; i < this.body.length; i++) {
-      const p = this.segments[i - 1];
-      this.segments.push({ x: p.x + this.size * Math.cos(a), y: p.y + this.size * Math.sin(a) });
-    }
+    this.segments = Array.from({ length: this.body.length }, (_, i) => sub(this, mul(this.heading, i * this.size)));
     this.shape = this.segments;
   }
 
@@ -598,17 +596,21 @@ export function startFish() {
     window.addEventListener('resize', resize);
 
     // Fewer fish on small screens, same density as the original on a laptop.
-    const count = Math.round(Math.min(80, Math.max(25, (w * h) / 14000)));
-    const reef: Fish[] = [];
-    for (let i = 0; i < count; i++) reef.push(new Fish(rand(0, w), rand(0, h)));
-    reef.push(new Predator(rand(0, w), rand(0, h)), new Predator(rand(0, w), rand(0, h)));
-    // The stream's salmon: a few big fish, about 14 on a laptop.
-    const run: Fish[] = [];
-    for (let i = 0; i < Math.round(Math.min(16, Math.max(6, (w * h) / 90000))); i++) run.push(new Salmon(rand(0, w), rand(0, h)));
-    // The pond's koi: about 10 on a laptop.
-    const pond: Fish[] = [];
-    for (let i = 0; i < Math.round(Math.min(12, Math.max(5, (w * h) / 130000))); i++) pond.push(new Koi(rand(0, w), rand(0, h)));
-    for (const f of [...reef, ...run, ...pond]) f.initSegments();
+    // (All made again, in new places and patterns, when the water is rerolled: water.generation.)
+    const [reef, run, pond]: Fish[][] = [[], [], []];
+    const populate = () => {
+      for (const school of [reef, run, pond]) school.length = 0;
+      const count = Math.round(Math.min(80, Math.max(25, (w * h) / 14000)));
+      for (let i = 0; i < count; i++) reef.push(new Fish(rand(0, w), rand(0, h)));
+      reef.push(new Predator(rand(0, w), rand(0, h)), new Predator(rand(0, w), rand(0, h)));
+      // The stream's salmon: a few big fish, about 14 on a laptop.
+      for (let i = 0; i < Math.round(Math.min(16, Math.max(6, (w * h) / 90000))); i++) run.push(new Salmon(rand(0, w), rand(0, h)));
+      // The pond's koi: about 10 on a laptop.
+      for (let i = 0; i < Math.round(Math.min(12, Math.max(5, (w * h) / 130000))); i++) pond.push(new Koi(rand(0, w), rand(0, h)));
+      for (const f of [...reef, ...run, ...pond]) f.initSegments();
+    };
+    populate();
+    let generation = water.generation;
 
     let pointer: V | null = null;
     window.addEventListener('pointermove', (e) => (pointer = { x: e.clientX, y: e.clientY }), { passive: true });
@@ -625,6 +627,10 @@ export function startFish() {
         [run, water.share],
         [pond, water.pond],
       ];
+      if (water.generation !== generation) {
+        generation = water.generation;
+        populate();
+      }
       ctx.clearRect(0, 0, w, h);
       for (const [school, weight] of schools) {
         if (weight < 0.003) continue;
