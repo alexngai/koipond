@@ -39,6 +39,12 @@ body {
   width: 100vw;
   height: 100vh;
   pointer-events: none;
+  transition: opacity 0.25s;
+}
+/* Rerolling: the water and fish dip out while they're laid out afresh, and back in. */
+.rerolling .water,
+.rerolling .boids {
+  opacity: 0 !important;
 }
 .boids {
   opacity: 0.9;
@@ -121,7 +127,7 @@ body {
   border-color: var(--accent);
 }
 
-/* --- the gear, and the settings dialog ------------------------------------------------------- */
+/* --- the reroll and gear buttons, and the settings dialog ------------------------------------ */
 
 svg {
   fill: none;
@@ -134,7 +140,8 @@ button {
   font: inherit;
   cursor: pointer;
 }
-.gear {
+.gear,
+.reroll {
   position: fixed;
   right: 16px;
   bottom: 24px;
@@ -150,11 +157,19 @@ button {
   color: var(--muted);
   transition: color 0.15s;
 }
-.gear svg {
+.reroll {
+  right: 54px; /* just left of the gear */
+}
+.reroll[hidden] {
+  display: none;
+}
+.gear svg,
+.reroll svg {
   width: 16px;
   height: 16px;
 }
-.gear:hover {
+.gear:hover,
+.reroll:hover {
   color: var(--text);
 }
 :focus-visible {

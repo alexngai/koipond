@@ -2,7 +2,8 @@
 
 A Chrome extension that puts a living water scene on every new tab: a coral reef, a mountain stream
 or a koi pond, by day or by night, with fish that swim away from your cursor. Over it, a clock and a
-search box (each optional), and a settings dialog behind the gear in the corner.
+search box (each optional), a settings dialog behind the gear in the corner, and a button beside it
+that lays the scene out afresh.
 
 Version 1.0 is a rebuild of the 2019 Koi Pond Simulator (Manifest V2, taken down with it), ported
 from the About page of [alexngai.github.io](https://github.com/alexngai/portfolio).
@@ -36,7 +37,7 @@ time a new tab opens, Chrome asks whether to keep the change: keep it.
 
 ## Layout
 
-- `newtab.html`: the page: the water's canvases, the clock, search box, gear and settings dialog.
+- `newtab.html`: the page: the water's canvases, the clock, search box, reroll button, gear and settings dialog.
 - `src/main.ts`: starts it all and wires up the settings.
 - `src/settings.ts`, `src/time.ts`: the settings and their storage; day or night by the clock.
 - `src/water/`: the scenes. `scene.ts` runs the WebGL water (`*.glsl`, one shader per scene,

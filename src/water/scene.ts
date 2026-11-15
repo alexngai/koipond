@@ -15,14 +15,21 @@ export const NAMES = Object.keys(SCENES) as Scene[];
 const VERT = `attribute vec2 p; void main() { gl_Position = vec4(p, 0.0, 1.0); }`;
 const UNIFORMS = ['u_time', 'u_cell', 'u_layer', 'u_day', 'u_weight', 'u_res', 'u_dir', 'u_seed', 'u_stones', 'u_stoneCount', 'u_pools', 'u_poolCount', 'u_current', 'u_debug', 'u_foamView', 'u_dt', 'u_foam', 'u_bed', 'u_flowMap', 'u_bedView', 'u_reef'];
 const CELL = 220; // CSS px across a foam cell
-const HEADING = Math.random() * Math.PI * 2; // which way the swell/current runs: new each visit
-const SEED = [Math.random() * 100, Math.random() * 100];
 const DEBUG_FLOW = new URLSearchParams(location.search).has('flow'); // ?flow draws the stream's current
 
-const STONES = placeStones(CELL);
-const POOLS = placePools(CELL);
-const REEF = placeReef(CELL);
-const DIR: [number, number] = [Math.cos(HEADING), Math.sin(HEADING)];
+// The random layout, new each visit and on each reroll: which way the swell and the current run, the
+// patterns' seed, the stream's boulders and bed, and the reef's coral.
+const layout = () => {
+  const heading = Math.random() * Math.PI * 2;
+  return {
+    DIR: [Math.cos(heading), Math.sin(heading)] as [number, number],
+    SEED: [Math.random() * 100, Math.random() * 100],
+    STONES: placeStones(CELL),
+    POOLS: placePools(CELL),
+    REEF: placeReef(CELL),
+  };
+};
+let { DIR, SEED, STONES, POOLS, REEF } = layout();
 
 // The stream's offscreen maps (passes in stream.glsl), all covering the larger of the screen and
 // the window, so resizing the window, or a phone's address bar coming and going, doesn't have to
@@ -177,8 +184,11 @@ export function startWater(start: { scene: Scene; time: Time }) {
       render(L.gl, L.foamStep, L.foam[1 - L.cur], QUARTER, t, dt);
       L.cur = 1 - L.cur;
     };
-    const surface = bubbles(document.querySelector<HTMLCanvasElement>('[data-bubbles]')!, document.querySelector<HTMLCanvasElement>('[data-leaves]')!, STONES, POOLS, DIR, CELL);
-    const pads = lilies(document.querySelector<HTMLCanvasElement>('[data-lilies]')!, CELL);
+    const extras = () => ({
+      surface: bubbles(document.querySelector<HTMLCanvasElement>('[data-bubbles]')!, document.querySelector<HTMLCanvasElement>('[data-leaves]')!, STONES, POOLS, DIR, CELL),
+      pads: lilies(document.querySelector<HTMLCanvasElement>('[data-lilies]')!, CELL),
+    });
+    let { surface, pads } = extras();
     let drawn = performance.now();
     const draw = (now: number, ease = 0.15) => {
       // Ease towards the picked scene and time of day: about half a second at ~30 fps.
@@ -283,6 +293,24 @@ export function startWater(start: { scene: Scene; time: Time }) {
       setTime(t: Time) {
         time = t;
         show();
+      },
+      // A new random layout, and new fish (fish.ts watches water.generation), laid out while the
+      // water and fish dip out for a moment. The maps are made again from scratch (area reset).
+      reroll() {
+        const go = () => {
+          ({ DIR, SEED, STONES, POOLS, REEF } = layout());
+          ({ surface, pads } = extras());
+          water.downstream = { x: DIR[0], y: -DIR[1] };
+          water.generation++;
+          area = [0, 0];
+          resize();
+        };
+        if (still) return go();
+        document.documentElement.classList.add('rerolling');
+        setTimeout(() => {
+          go();
+          document.documentElement.classList.remove('rerolling');
+        }, 250);
       },
     };
   }
