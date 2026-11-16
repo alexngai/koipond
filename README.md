@@ -16,6 +16,25 @@ from the About page of [alexngai.github.io](https://github.com/alexngai/portfoli
 
 They're kept in Chrome's synced storage, so they follow you between computers.
 
+## As a wallpaper
+
+The water also runs on its own, full screen, with nothing over it, at
+[alexngai.github.io/koipond2](https://alexngai.github.io/koipond2/): for a desktop wallpaper, a
+screen saver or a TV's browser. Its address sets it up:
+
+- `scene`: `reef`, `stream`, `pond` or `beach` every time, or `random` (the default), a new one each
+  load.
+- `time`: `day` or `night` always, or `auto` (the default) by the clock: day from `day` until `night`
+  (`HH:MM`, 07:00 and 19:00 unless given).
+- `cycle`: minutes between new layouts (0, the default: never). With a random scene, each is a
+  different scene too.
+
+For example `?scene=beach&day=06:30&night=20:00&cycle=15`. On a Mac, [Plash](https://sindresorhus.com/plash)
+shows it as the desktop wallpaper. It keeps the GPU busy, so on battery it costs some power.
+
+It's `index.html` and `src/wallpaper.ts`, built on its own into `pages/` (`npm run build:pages`) and
+deployed to GitHub Pages on each push to `main` (`.github/workflows/pages.yml`).
+
 ## Developing
 
 ```sh
@@ -23,6 +42,7 @@ npm install
 npm run dev     # the page on its own at http://localhost:5173/newtab.html (settings in localStorage)
 npm test        # the day/night timing
 npm run build   # type-checks, then builds the extension into dist/
+npm run build:pages  # ... or the wallpaper into pages/ (index.html; at http://localhost:5173/ in dev)
 npm run zip     # builds, then packs dist/ into release/koi-pond-simulator-<version>.zip for the store
 npm run store   # builds, then renders the icons and the store's screenshots and promo tile (needs
                 # Google Chrome and Pillow)
