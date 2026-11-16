@@ -51,13 +51,21 @@ body {
   /* Shadows on the floor, cast the same way as the foam's but shorter: the fish swim lower. */
   filter: drop-shadow(30px 42px 6px rgba(0, 0, 0, 0.45));
 }
-/* In the bright day reef the fish get richer colour, or they'd wash out. */
-[data-scene='ocean'][data-time='day'] .boids {
+/* In the bright day reef (and the beach) the fish get richer colour, or they'd wash out. */
+[data-scene='ocean'][data-time='day'] .boids,
+[data-scene='beach'][data-time='day'] .boids {
   filter: brightness(1) saturate(1.8) drop-shadow(30px 42px 6px rgba(0, 0, 0, 0.45));
 }
 /* In the pond at night, the koi dim with the lilies. */
 [data-scene='pond'][data-time='night'] .boids {
   filter: brightness(0.55) saturate(0.75) drop-shadow(30px 42px 6px rgba(0, 0, 0, 0.45));
+}
+/* The beach's and the reef's surface particles are drawn through the gooey filter (newtab.html). */
+.goo {
+  filter: url('#beach-goo');
+}
+.goo-filter {
+  position: absolute;
 }
 
 /* --- the clock and search box ---------------------------------------------------------------- */

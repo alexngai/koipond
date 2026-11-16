@@ -6,6 +6,8 @@
 // paler the higher it is, and a hard shadow down and to the right that falls on the tiers below.
 // CSS px, y up from the window's bottom edge, as in the shader.
 
+import { WORLD_H, type Bed, type Swell } from './surf';
+
 type Plate = { x: number; y: number; lift: number; path: Path2D; color: string }; // lift: px above the sand
 
 const rand = (a: number, b: number) => a + (b - a) * Math.random();
@@ -58,8 +60,10 @@ function cascade(cx: number, cy: number, R: number): Plate[] {
 }
 
 // About one colony (150-400 CSS px across) for every seven cells of screen, kept apart, and four
-// small ones (50-110 px) on the sand for each.
-export function placeReef(cell: number): Plate[] {
+// small ones (50-110 px) on the sand for each. Their plates, and the colonies themselves (where they
+// are and how far they reach, px), for the reef's fish to live about (fish.ts).
+export type Colony = { x: number; y: number; r: number };
+export function placeReef(cell: number): Plate[] & { colonies: Colony[] } {
   const W = Math.max(screen.width, window.innerWidth);
   const H = Math.max(screen.height, window.innerHeight);
   const spots: [number, number, number][] = [];
@@ -71,7 +75,10 @@ export function placeReef(cell: number): Plate[] {
   const colonies = Math.max(2, Math.round((W * H) / (7 * cell * cell)));
   for (let i = 0; i < colonies; i++) place(cell * rand(0.35, 0.9));
   for (let i = 0; i < 4 * colonies; i++) place(cell * rand(0.12, 0.25));
-  return spots.flatMap(([x, y, R]) => cascade(x, y, R));
+  return Object.assign(
+    spots.flatMap(([x, y, R]) => cascade(x, y, R)),
+    { colonies: spots.map(([x, y, r]) => ({ x, y, r })) },
+  );
 }
 
 // The reef on a w x h px canvas, transparent where there's only sand.
@@ -89,4 +96,53 @@ export function drawReef(plates: Plate[], w: number, h: number): HTMLCanvasEleme
     ctx.fill(p.path);
   }
   return canvas;
+}
+
+// How high the reef stands (drawReefHeight()): TALLEST px of lift is white.
+export const TALLEST = 42;
+
+// The reef's heights on a w x h px canvas, laid out like drawReef()'s: how far each point stands
+// above the sand, grey from black (sand) to white (TALLEST px up), for the caustics to drape over
+// (ocean.glsl) and the swell to feel (reefBed()).
+export function drawReefHeight(plates: Plate[], w: number, h: number): HTMLCanvasElement {
+  const canvas = document.createElement('canvas');
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext('2d')!;
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, w, h);
+  for (const p of plates) {
+    const v = Math.round((255 * Math.min(p.lift, TALLEST)) / TALLEST);
+    ctx.setTransform(1, 0, 0, 1, p.x, h - p.y);
+    ctx.fillStyle = `rgb(${v},${v},${v})`;
+    ctx.fill(p.path);
+  }
+  return canvas;
+}
+
+// The reef's swell: long and slow, rolling in along `dir` (the floor's u_dir: x right, y up) towards
+// the sand on that side of the screen (its water's edge just off the screen there), within 17
+// degrees of head-on.
+export function placeReefSwell(dir: [number, number]): Swell {
+  return { facing: Math.atan2(-dir[1], dir[0]), land: 0, angle: rand(-0.3, 0.3), period: rand(14, 18), height: rand(0.6, 1), seed: rand(0, 100) };
+}
+
+// The reef's seabed, for the swell (surf.ts: buildSurf()): shelving from the sand at the water's
+// edge (as ocean.glsl colours it: 0.4 m there, 16 m across the screen), with the coral standing up
+// off it, CORAL m per px of lift, its tops never quite reaching the surface. `heights`:
+// drawReefHeight()'s pixels (an area w x h px, the window's h px tall at its bottom).
+const CORAL = 0.18;
+export function reefBed(heights: Uint8ClampedArray, w: number, h: number): Bed {
+  const win = window.innerHeight;
+  const px = win / WORLD_H; // px per m
+  return (f, u, v) => {
+    const r = f.shore - v; // m out from the water's edge
+    if (r <= 0) return [r * 0.08, 0, r];
+    let d = 0.4 + 16 * Math.pow(r / f.sea, 1.5);
+    const x = Math.round((f.cx + u * f.t[0] + v * f.n[0]) * px);
+    const y = Math.round(h - win + (f.cy + u * f.t[1] + v * f.n[1]) * px);
+    const lift = x >= 0 && x < w && y >= 0 && y < h ? (heights[(y * w + x) * 4] / 255) * TALLEST : 0;
+    if (lift > 0) d = Math.max(d - CORAL * lift, Math.min(d, 0.3));
+    return [d, lift > 0 ? 1 : 0, r];
+  };
 }

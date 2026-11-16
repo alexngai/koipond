@@ -1,7 +1,7 @@
 // Stream: clear water running over a pebbly bed and boulders, in the ocean's flat style: solid
 // fills, hard offset shadows and caustic lines, no shading or texture. The current (flow()) parts
-// around the boulders and sheds eddies behind them; for now it shows in the caustics it carries.
-// Foam and bubbles come next.
+// around the boulders and sheds eddies behind them; it shows in the caustics it carries, the foam
+// (FOAM_STEP), and the bubbles, leaves and fish (stream.ts, fish.ts).
 #define MAX_STONES 32 // matches scene.ts
 uniform vec4 u_stones[MAX_STONES]; // x, y, radius (cells), random seed
 uniform int u_stoneCount;
@@ -14,7 +14,10 @@ uniform vec2 u_foamView;  // how much of the stream the foam map covers, in cell
 uniform float u_dt;       // seconds since the last foam step
 uniform sampler2D u_bed;     // the bed, drawn once (BED_PASS): colour, and depth in alpha
 uniform sampler2D u_flowMap; // the current at quarter resolution (CURRENT_PASS): velocity / 3 + 0.5
-uniform vec2 u_bedView;      // how much of the stream those two maps cover, in cells
+uniform vec2 u_bedView;      // how much of the stream those maps cover, in cells
+#ifndef HEIGHT_PASS
+uniform sampler2D u_bump;    // the bed's relief, drawn once (HEIGHT_PASS): height / 3
+#endif
 uniform float u_current; // cells per second, along u_dir: set per visit by stream.ts
 #define CURRENT u_current
 
@@ -26,8 +29,9 @@ vec3 hsv(float h, float s, float v) {
 
 // A pebble per Voronoi cell, packed close like a lake shore: a disc around the cell's point,
 // trimmed where it meets its neighbours. Mostly pale blue-greys and whites, with about one in six a
-// warm amber, peach or rust. Returns its colour and coverage.
-vec4 pebble(vec2 p, float scale) {
+// warm amber, peach or rust. Returns its colour and coverage; `dome`, how high this point is on it
+// (1 in its middle, 0 at its edge).
+vec4 pebble(vec2 p, float scale, out float dome) {
   p *= scale;
   vec2 n = floor(p), f = fract(p), id = n;
   float d1 = 8.0, d2 = 8.0;
@@ -39,6 +43,8 @@ vec4 pebble(vec2 p, float scale) {
   vec2 h = hash(id + 31.7), k = hash(id + 77.1);
   float px = scale / u_cell; // one canvas pixel, in this layer's units
   float cover = smoothstep(0.06, 0.06 + 2.0 * px, d2 - d1) * smoothstep(0.0, px, 0.42 + 0.16 * h.y - d1);
+  float r = min(d1 / (0.42 + 0.16 * h.y), 1.0);
+  dome = sqrt(1.0 - r * r) * smoothstep(0.06, 0.2, d2 - d1);
   vec3 c = fract(h.x * 13.0 + k.x * 7.0) > 0.83 ? hsv(0.03 + 0.08 * h.x, mix(0.35, 0.6, k.x), mix(0.62, 0.88, k.y))
                       : hsv(0.55 + 0.06 * h.x, mix(0.03, 0.14, k.x), mix(0.58, 0.9, k.y));
   return vec4(c, cover);
@@ -182,17 +188,48 @@ vec2 gather(vec2 p) {
   return across * v;
 }
 
-// Caustics carried by the current: two copies of the pattern, each pushed along the flow and
-// reset every cycle, half a cycle apart and crossfaded so neither reset ever shows (a flow map).
-// Each reset jumps to another patch of the pattern, within 100 cells: left to run on, the jumps
-// carried it ever further out, and after half an hour or so hash()'s sin() ran out of float
-// precision there and the cells lined up in a square grid.
-float flowingCaustics(vec2 p, vec2 v) {
-  float t = u_time / 2.0; // 2 s cycles
-  float a = fract(t), b = fract(t + 0.5);
-  float c1 = caustics(p - v * a * 2.0 + mod(7.31 * floor(t), 100.0), 0.024);
-  float c2 = caustics(p - v * b * 2.0 + mod(7.31 * floor(t + 0.5), 100.0) + 3.1, 0.024);
-  return mix(c1, c2, abs(1.0 - 2.0 * a));
+// How high the bed stands at p, for the caustics to drape over (HEIGHT_PASS): 0 down in the gaps,
+// each pebble a low dome (the small ones down in the gaps lower than the big ones packed on top,
+// about 1 on their tops), the boulders standing tallest (up to 2.5).
+float bedHeight(vec2 p) {
+  vec2 b = p + u_seed;
+  float small, big;
+  float cover = pebble(b + 40.0, 8.0, small).a;
+  float h = 0.45 * small * cover;
+  cover = pebble(b, 3.5, big).a;
+  h = mix(h, 0.3 + 0.7 * big, cover);
+  for (int i = 0; i < MAX_STONES; i++) {
+    if (i >= u_stoneCount) break;
+    vec4 s = u_stones[i];
+    vec2 o = p - s.xy;
+    if (dot(o, o) > 2.0 * s.z * s.z) continue;
+    float d = stone(p, s);
+    if (d < 0.0) h = max(h, 1.2 + 1.3 * sqrt(max(0.0, 1.0 - (1.0 + d) * (1.0 + d))));
+  }
+  return h;
+}
+
+// Caustics carried by the current, in one layer: the whole pattern drifts downstream at the
+// stream's speed, bent by the current round the boulders: shifted by how much faster or slower the
+// water there runs than the stream as a whole, over BEND s, so it parts round them, is pulled
+// through the fast water beside them and held back in their wakes. (Carried by the current itself
+// it would tear apart where the water runs at different speeds.) The drift winds back every
+// DRIFT_T s, crossfading over FADE s to the same pattern wound back, so it never runs far enough
+// out for hash()'s sin() to lose float precision: left to run on, after half an hour or so the
+// cells would line up in a square grid.
+#define BEND 1.2
+#define PARALLAX 0.1 // cells the caustics fall down and to the right per unit of the bed's height
+#define RELIEF 0.06   // cells per unit of the bed's height: how steep its pebbles' slopes are
+#define DRIFT_T 600.0
+#define FADE 4.0
+float flowingCaustics(vec2 p, vec2 v, float width) {
+  vec2 mean = u_dir * u_current;
+  vec2 q = p - (v - mean) * BEND;
+  float t = mod(u_time, DRIFT_T);
+  float c = caustics(q - mean * t, width);
+  float w = smoothstep(DRIFT_T - FADE, DRIFT_T, t);
+  if (w > 0.0) c = mix(c, caustics(q - mean * (t - DRIFT_T), width), w);
+  return c;
 }
 
 float segment(vec2 p, vec2 a, vec2 b) {
@@ -227,15 +264,21 @@ vec4 shade(vec2 p) {
 vec4 shade(vec2 p) {
   return vec4(flow(p) / 3.0 + 0.5, 0.0, 1.0);
 }
+#elif defined(HEIGHT_PASS)
+// The bed's relief, drawn once with the bed: height / 3.
+vec4 shade(vec2 p) {
+  return vec4(bedHeight(p) / 3.0, 0.0, 0.0, 1.0);
+}
 #elif defined(BED_PASS)
 // The bed, drawn once since it never changes: pebbles, boulders and their shadows, tinted by the
 // water over them, with that depth in alpha for the caustics.
 vec4 shade(vec2 p) {
   // Small pebbles down in the gaps, larger ones packed on top.
   vec2 b = p + u_seed;
-  vec4 peb = pebble(b + 40.0, 8.0);
+  float dome;
+  vec4 peb = pebble(b + 40.0, 8.0, dome);
   vec3 col = mix(GAP, peb.rgb * 0.8, peb.a);
-  peb = pebble(b, 3.5);
+  peb = pebble(b, 3.5, dome);
   col = mix(col, peb.rgb, peb.a);
   float depth = depthAt(p);
   // Boulders (the current parts around them), each with a hard shadow cast down and to the right.
@@ -248,8 +291,11 @@ vec4 shade(vec2 p) {
     col *= 1.0 - 0.4 * smoothstep(px, -px, stone(p + vec2(-0.3, 0.3) * s.z, s));
     col = mix(col, stoneColor(s), smoothstep(px, -px, stone(p, s)));
   }
-  // Seen through the water: clear and pale cyan in the shallows, deepening to teal.
-  col = mix(col, mix(vec3(0.66, 0.88, 0.88), vec3(0.04, 0.44, 0.54), depth), 0.2 + 0.65 * depth);
+  // Seen through the water: clear and pale cyan in the shallows, deepening to teal, the deep teal
+  // reaching well up towards the shallows (so the red salmon stand out against blue over most of
+  // the bed).
+  float tint = 1.0 - (1.0 - depth) * (1.0 - depth);
+  col = mix(col, mix(vec3(0.66, 0.88, 0.88), vec3(0.04, 0.44, 0.54), tint), 0.2 + 0.65 * tint);
   return vec4(col, depth);
 }
 #else
@@ -263,12 +309,23 @@ vec4 shade(vec2 p) {
     return vec4(mix(vec3(0.5, 0.58, 0.66), vec3(0.95, 0.98, 1.0), u_day) * a + vec3(0.02, 0.07, 0.09) * sh, a + sh);
   }
   // The floor: the bed (BED_PASS) and thin lines of light over it, carried by the current
-  // (CURRENT_PASS) and strongest where the bed is closest to the ripples; cool and faint by
-  // moonlight, warm sunlight by day.
+  // (flowingCaustics(), CURRENT_PASS) and strongest where the bed is closest to the ripples; cool
+  // and faint by moonlight, warm sunlight by day.
+  // The lines drape over the bed (HEIGHT_PASS): on anything standing up they fall a little down and
+  // to the right of where they would on the bottom (the light comes from up and to the left), so
+  // they bend over each pebble and break at its edge; and on its slopes facing the light they're
+  // brighter and broader, on those facing away fainter and finer.
   vec4 bed = texture2D(u_bed, p / u_bedView);
   vec2 v = (texture2D(u_flowMap, p / u_bedView).rg - 0.5) * 3.0;
+  float e = 1.5 / u_cell; // cells
+  float h = 3.0 * texture2D(u_bump, p / u_bedView).r;
+  vec2 slope = 3.0 * vec2(texture2D(u_bump, (p + vec2(e, 0.0)) / u_bedView).r - texture2D(u_bump, (p - vec2(e, 0.0)) / u_bedView).r,
+                          texture2D(u_bump, (p + vec2(0.0, e)) / u_bedView).r - texture2D(u_bump, (p - vec2(0.0, e)) / u_bedView).r) / (2.0 * e);
+  vec3 n = normalize(vec3(-RELIEF * slope, 1.0));
+  float lit = clamp(dot(n, normalize(vec3(-0.5, 0.5, 0.8))) / 0.8, 0.35, 1.6); // 1 on the flat
+  float light = flowingCaustics(p + vec2(0.5, -0.5) * PARALLAX * h, v, 0.024 * mix(0.75, 1.3, smoothstep(0.35, 1.6, lit)));
   vec3 col = bed.rgb + mix(vec3(0.85, 0.96, 0.88) * 0.22, vec3(1.0, 0.9, 0.62) * 0.22, u_day)
-           * flowingCaustics(p, v) * mix(1.4, 0.6, bed.a);
+           * light * lit * mix(1.4, 0.6, bed.a);
   col *= mix(vec3(0.24, 0.30, 0.38), vec3(1.0), u_day); // moonlit at night
   if (u_debug > 0.5) col = mix(col, vec3(1.0, 0.25, 0.2), arrows(p));
   return vec4(col, 1.0);
