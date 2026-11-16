@@ -243,9 +243,11 @@ export function bubbles(canvas: HTMLCanvasElement, below: HTMLCanvasElement, sto
   };
   for (const l of leaves) place(l, true);
   let dpr = 1;
+  let shown = true; // anything drawn: once the scene's gone, they're cleared once, then left alone
 
   return {
     resize() {
+      shown = true;
       dpr = Math.min(window.devicePixelRatio || 1, 2);
       for (const c of [ctx, lctx]) {
         c.canvas.width = window.innerWidth * dpr;
@@ -255,9 +257,13 @@ export function bubbles(canvas: HTMLCanvasElement, below: HTMLCanvasElement, sto
     },
     // t: seconds, as the shader's u_time; dt: seconds since the last draw (0 to just redraw).
     draw(t: number, dt: number, weight: number, day: number) {
-      ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
-      lctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
-      if (weight < 0.003) return;
+      if (shown) {
+        ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+        lctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+      }
+      shown = weight >= 0.003;
+      ctx.canvas.style.visibility = lctx.canvas.style.visibility = shown ? '' : 'hidden'; // hidden, an idle canvas costs nothing
+      if (!shown) return;
       const w = window.innerWidth / cell;
       const h = window.innerHeight / cell;
       const shadows = new Path2D();

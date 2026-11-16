@@ -10,6 +10,7 @@
          the pond's lilies, the surface, the stream's bubbles, the beach's and the reef's particles,
          and the beach's gulls. -->
     <canvas class="water" aria-hidden="true" data-water="0"></canvas>
+    <canvas class="boids" aria-hidden="true" data-fish-shadows></canvas>
     <canvas class="boids" aria-hidden="true" data-boids></canvas>
     <canvas class="water" aria-hidden="true" data-shore></canvas>
     <canvas class="water" aria-hidden="true" data-leaves></canvas>
@@ -17,22 +18,12 @@
     <canvas class="water" aria-hidden="true" data-water="1"></canvas>
     <canvas class="water" aria-hidden="true" data-bubbles></canvas>
     <canvas class="water" aria-hidden="true" data-spray></canvas>
-    <canvas class="water goo" aria-hidden="true" data-goo></canvas>
+    <canvas class="water" aria-hidden="true" data-fused></canvas>
+    <canvas class="water" aria-hidden="true" data-goo></canvas>
     <canvas class="water" aria-hidden="true" data-reef-spray></canvas>
-    <canvas class="water goo" aria-hidden="true" data-reef-goo></canvas>
+    <canvas class="water" aria-hidden="true" data-reef-fused></canvas>
+    <canvas class="water" aria-hidden="true" data-reef-goo></canvas>
     <canvas class="water" aria-hidden="true" data-sky></canvas>
-    <!-- The particles on the beach and the reef are drawn through this (css-tricks.com/gooey-effect):
-         blurred, then cut off hard where the blur thins out, so particles close together fuse into
-         blobs of foam with a crisp edge; those get a hard shadow, and the particles go back on top. -->
-    <svg class="goo-filter" aria-hidden="true" width="0" height="0">
-      <filter id="beach-goo">
-        <feGaussianBlur in="SourceGraphic" stdDeviation="4" result="blur" />
-        <feColorMatrix in="blur" mode="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 16 -5" result="goo" />
-        <feColorMatrix in="goo" mode="matrix" values="0 0 0 0 0  0 0 0 0 0.1  0 0 0 0 0.16  0 0 0 0.18 0" result="shadow" />
-        <feOffset in="shadow" dx="3" dy="4" result="shadow" />
-        <feMerge><feMergeNode in="shadow" /><feMergeNode in="goo" /><feMergeNode in="SourceGraphic" /></feMerge>
-      </filter>
-    </svg>
 
     <main class="overlay">
       <div class="clock" data-clock hidden>

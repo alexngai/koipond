@@ -82,7 +82,9 @@ export function shore(low: HTMLCanvasElement, sky: HTMLCanvasElement) {
       x.setTransform(dpr, 0, 0, dpr, 0, 0);
     }
     grid = null; // place them again on the new layout
+    shown = true;
   };
+  let shown = true; // anything drawn: once the scene's gone, they're cleared once, then left alone
   resize();
 
   // A crab, from above: four short legs a side (each two segments, stepping in turn as it walks),
@@ -178,9 +180,14 @@ export function shore(low: HTMLCanvasElement, sky: HTMLCanvasElement) {
   return {
     resize,
     draw(t: number, dt: number, weight: number, day: number, g: SurfGrid) {
-      ltx.clearRect(0, 0, w, h);
-      stx.clearRect(0, 0, w, h);
-      if (weight < 0.003) return;
+      if (shown) {
+        ltx.clearRect(0, 0, w, h);
+        stx.clearRect(0, 0, w, h);
+      }
+      shown = weight >= 0.003;
+      low.style.visibility = shown && crabs.length ? '' : 'hidden';
+      sky.style.visibility = shown && gulls.length ? '' : 'hidden'; // hidden, empty canvases cost nothing
+      if (!shown) return;
       if (grid !== g) {
         grid = g;
         place();

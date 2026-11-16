@@ -2,6 +2,7 @@
 // ocean.glsl), on their own canvases. Both read the surf worked out from the seabed (surf.ts), which
 // for the beach this builds, once per layout and size, for scene.ts to hand the shader too.
 import { buildSurf, drawSurfDebug, seabed, surfAt, LIFT, LIP, TILT, WORLD_H, type Surf, type SurfGrid, type Swell } from './surf';
+import { blobs } from './goo';
 
 const TAU = Math.PI * 2;
 const GAP = 13; // px between particles' spots at rest (on a screen 800 px tall)
@@ -36,16 +37,17 @@ const fract = (x: number) => x - Math.floor(x);
 //   spilling, two or three), flung out hard, fanning out about the way the wave runs, arcing up and
 //   falling back (seen through the tilt) over SPRAY s, faster and higher the stronger it is. As a
 //   plunging lip throws, the surface's at its crest are flung ahead with it.
-// The surface's are drawn on their own canvas, `goo`, through scene.ts's gooey filter, so where
-// they bunch up (on the crests near breaking) they fuse into blobs of foam; the deeper ones, the
-// spray and the brightest surface ones' hard shadows on `canvas` beneath.
+// The surface's are drawn on their own canvas, `goo`, and fused (goo.ts) where they bunch up (on the
+// crests near breaking) into blobs of foam on `fused`, beneath it; the deeper ones, the spray and the
+// brightest surface ones' hard shadows on `canvas` beneath that.
 // With `debug` (newtab.html?scene=beach&flow) it draws the surf model instead.
 // `source`: the beach's layout, to build its grid from, or a function handing over a grid built
 // elsewhere (the reef's: scene.ts), as it is when the particles are drawn. `tilt`: how far a
 // height lifts things up the screen (the beach's 3/4 view; 0 seen straight down, as the reef is).
-export function spray(canvas: HTMLCanvasElement, goo: HTMLCanvasElement, surf: Swell, source: Surf | (() => SurfGrid | null), tilt = TILT, debug = false) {
+export function spray(canvas: HTMLCanvasElement, goo: HTMLCanvasElement, fused: HTMLCanvasElement, surf: Swell, source: Surf | (() => SurfGrid | null), tilt = TILT, debug = false) {
   const ctx = canvas.getContext('2d')!;
   const gtx = goo.getContext('2d')!;
+  const foam = blobs(fused);
   let w = 0;
   let h = 0;
   let u = 1; // the screen's height over 800 px
@@ -57,6 +59,7 @@ export function spray(canvas: HTMLCanvasElement, goo: HTMLCanvasElement, surf: S
   // Where the rocks standing out of the water hide what's behind them (beach.glsl's ROCK_PASS, read
   // back by scene.ts): alpha, a row of `w` px at a time from the bottom of the window.
   let rocks: { w: number; data: Uint8Array } | null = null;
+  let shown = true; // anything drawn: once the scene's gone, they're cleared once, then left alone and hidden (costing nothing)
   const hidden = (x: number, y: number) => {
     if (!rocks || x < 0 || x >= rocks.w || y < 0 || y >= h) return false;
     return rocks.data[(Math.floor(h - y) * rocks.w + Math.floor(x)) * 4 + 3] > 127;
@@ -75,6 +78,8 @@ export function spray(canvas: HTMLCanvasElement, goo: HTMLCanvasElement, surf: S
       c.height = h * dpr;
       x.setTransform(dpr, 0, 0, dpr, 0, 0);
     }
+    foam?.resize(w, h, dpr);
+    shown = true;
     if (typeof source === 'function') return; // the grid comes with the next draw
     const start = performance.now();
     grid = buildSurf(surf, w, h, (f, u, v) => seabed(source, f, u, v));
@@ -108,9 +113,14 @@ export function spray(canvas: HTMLCanvasElement, goo: HTMLCanvasElement, surf: S
       rocks = r;
     },
     draw(t: number, weight: number, day: number) {
-      ctx.clearRect(0, 0, w, h);
-      gtx.clearRect(0, 0, w, h);
-      if (weight < 0.003) return;
+      if (shown) {
+        ctx.clearRect(0, 0, w, h);
+        gtx.clearRect(0, 0, w, h);
+        foam?.clear();
+      }
+      shown = weight >= 0.003;
+      canvas.style.visibility = goo.style.visibility = fused.style.visibility = shown ? '' : 'hidden';
+      if (!shown) return;
       if (typeof source === 'function' && source() !== grid) {
         grid = source();
         if (grid) place(grid);
@@ -201,17 +211,26 @@ export function spray(canvas: HTMLCanvasElement, goo: HTMLCanvasElement, surf: S
       const rgb = (c: number[]) => c.map((d, k) => Math.round(d * (NIGHT[k] + (1 - NIGHT[k]) * day))).join(',');
       ctx.fillStyle = `rgba(0, 25, 40, ${0.14 * weight})`;
       ctx.fill(shadow);
+      // The surface's, and the bubbles, on `goo` and to be fused.
+      const onGoo = (style: string, path: Path2D) => {
+        for (const x of foam ? [gtx, foam.ctx] : [gtx]) {
+          x.fillStyle = style;
+          x.fill(path);
+        }
+      };
       // Deepest first, so the surface's are drawn over them (on their own canvas, over this one).
       for (let i = LAYERS.length - 1; i >= 0; i--) {
-        const x = i ? ctx : gtx;
         bins[i].forEach((path, b) => {
-          x.fillStyle = `rgba(${rgb(LAYERS[i].tints[Math.floor(b / BINS)])}, ${(((b % BINS) + 0.5) / BINS) * weight})`;
-          x.fill(path);
+          const style = `rgba(${rgb(LAYERS[i].tints[Math.floor(b / BINS)])}, ${(((b % BINS) + 0.5) / BINS) * weight})`;
+          if (i) {
+            ctx.fillStyle = style;
+            ctx.fill(path);
+          } else onGoo(style, path);
         });
       }
       const white = rgb(LAYERS[0].tints[0]);
-      gtx.fillStyle = `rgba(${white}, ${0.7 * weight})`;
-      gtx.fill(bubbles);
+      onGoo(`rgba(${white}, ${0.7 * weight})`, bubbles);
+      foam?.draw();
       [0.95, 0.55].forEach((alpha, k) => {
         ctx.fillStyle = `rgba(${white}, ${alpha * weight})`;
         ctx.fill(drops[k]);
