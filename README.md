@@ -20,7 +20,7 @@ They're kept in Chrome's synced storage, so they follow you between computers.
 ## As a wallpaper
 
 The water also runs on its own, full screen, with nothing over it, at
-[alexngai.github.io/koipond2](https://alexngai.github.io/koipond2/): for a desktop wallpaper, a
+[alexngai.github.io/koipond](https://alexngai.github.io/koipond/): for a desktop wallpaper, a
 screen saver or a TV's browser. Its address sets it up:
 
 - `scene`: `reef`, `stream`, `pond` or `beach` every time, or `random` (the default), a new one each

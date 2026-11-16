@@ -14,4 +14,4 @@ or anyone else.
 through Chrome (`chrome.search`), exactly as if you had typed it into the address bar. The extension
 does not see or keep it.
 
-Questions: open an issue at https://github.com/alexngai/koipond2.
+Questions: open an issue at https://github.com/alexngai/koipond.
