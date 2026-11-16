@@ -1,12 +1,13 @@
 # Koi Pond Simulator
 
-A Chrome extension that puts a living water scene on every new tab: a coral reef, a mountain stream,
-a koi pond or a beach, by day or by night, with fish that swim away from your cursor. Over it, a clock and a
-search box (each optional), a settings dialog behind the gear in the corner, and a button beside it
-that lays the scene out afresh.
+A Chrome extension that puts a living water scene on every new tab: a coral reef, a mountain
+stream, a koi pond or a beach, by day or by night, with fish that swim away from your cursor. Over
+it, a clock and a search box (each optional), a settings dialog behind the gear in the corner, and a
+button beside it that lays the scene out afresh. The water also runs on its own as a
+[wallpaper](#as-a-wallpaper).
 
 Version 1.0 is a rebuild of the 2019 Koi Pond Simulator (Manifest V2, taken down with it), ported
-from the About page of [alexngai.github.io](https://github.com/alexngai/portfolio).
+from the background of the [About page of alexngai.com](https://alexngai.com/about/).
 
 ## Settings
 
@@ -57,8 +58,12 @@ time a new tab opens, Chrome asks whether to keep the change: keep it.
 
 ## Layout
 
-- `newtab.html`: the page: the water's canvases, the clock, search box, reroll button, gear and settings dialog.
+- `newtab.html`: the page: the water's canvases, the clock, search box, reroll button, gear and
+  settings dialog.
 - `src/main.ts`: starts it all and wires up the settings.
+- `index.html`, `src/wallpaper.ts`: the wallpaper: the same water and fish with nothing over them,
+  set up by its address. `vite.config.ts` builds it on its own with `--mode pages`, and
+  `.github/workflows/pages.yml` deploys it to GitHub Pages.
 - `src/settings.ts`, `src/time.ts`: the settings and their storage; day or night by the clock.
 - `src/water/`: the scenes. `scene.ts` runs the WebGL water (`*.glsl`, one shader per scene,
   crossfaded), `fish.ts` the schools of fish, and `stream.ts`, `reef.ts`, `pond.ts` each scene's
