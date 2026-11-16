@@ -6,6 +6,8 @@ it, a clock and a search box (each optional), a settings dialog behind the gear 
 button beside it that lays the scene out afresh. The water also runs on its own as a
 [wallpaper](#as-a-wallpaper).
 
+![The four scenes by day (top) and by night: pond, reef, stream and beach](docs/scenes.webp)
+
 Version 1.0 is a rebuild of the 2019 Koi Pond Simulator (Manifest V2, taken down with it), ported
 from the background of the [About page of alexngai.com](https://alexngai.com/about/).
 
