@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
+    "build:pages": "tsc && vite build --mode pages",
     "preview": "vite preview",
     "test": "node --test src/time.test.ts",
     "zip": "npm run build && mkdir -p release && cd dist && zip -qr ../release/koi-pond-simulator-$(node -p \"require('../public/manifest.json').version\").zip . && echo release/koi-pond-simulator-$(node -p \"require('../public/manifest.json').version\").zip",
