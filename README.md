@@ -1,7 +1,7 @@
 # Koi Pond Simulator
 
-A Chrome extension that puts a living water scene on every new tab: a coral reef, a mountain stream
-or a koi pond, by day or by night, with fish that swim away from your cursor. Over it, a clock and a
+A Chrome extension that puts a living water scene on every new tab: a coral reef, a mountain stream,
+a koi pond or a beach, by day or by night, with fish that swim away from your cursor. Over it, a clock and a
 search box (each optional), a settings dialog behind the gear in the corner, and a button beside it
 that lays the scene out afresh.
 
@@ -10,7 +10,7 @@ from the About page of [alexngai.github.io](https://github.com/alexngai/portfoli
 
 ## Settings
 
-- **Scene**: Random (a new one for each tab), Reef, Stream or Pond.
+- **Scene**: Random (a new one for each tab), Reef, Stream, Pond or Beach.
 - **Time of day**: Auto (day from 07:00 to 19:00, both adjustable), or always Day or Night.
 - **Show**: the clock, the search box (it searches with Chrome's default search engine).
 
@@ -43,6 +43,10 @@ time a new tab opens, Chrome asks whether to keep the change: keep it.
 - `src/water/`: the scenes. `scene.ts` runs the WebGL water (`*.glsl`, one shader per scene,
   crossfaded), `fish.ts` the schools of fish, and `stream.ts`, `reef.ts`, `pond.ts` each scene's
   extras (the stream's boulders, leaves and bubbles, the reef's coral, the pond's lilies and rain).
+  The reef and the beach ride a surf model (`surf.ts`, `surf.glsl`): a seabed and the swell crossing
+  it, worked out once per layout, that both shade their water from and `beach.ts` rides its
+  particles on; `shore.ts` has the beach's crab and gulls, and `glints.glsl` the caustics painted
+  onto the fish. `newtab.html?scene=beach&flow` draws the beach's surf model instead.
 - `public/manifest.json`: the extension's manifest (Manifest V3), copied into `dist/` as is. Its
   `version` names the zip; raise it for each store upload.
 - `store/`: what the Chrome Web Store needs: the listing and privacy answers (`listing.md`), a

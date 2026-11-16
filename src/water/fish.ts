@@ -1,7 +1,9 @@
-// The fish: a reef school of small fish with a couple of larger predators chasing them, salmon in the
-// stream and koi in the pond, each school swimming (and showing, fading) only while its scene does
-// (water.share and water.pond, from scene.ts). Everything swims away from the cursor. A still frame
-// for reduced motion. On the page's [data-boids] canvas, from startFish() (after startWater()).
+// The fish: a reef school of small fish with a couple of larger predators chasing them, and clouds of
+// damselfish living about its coral; salmon in the stream; koi in the pond; and on the beach the reef's
+// school again, keeping to the sea. Each school swims (and shows, fading) only while its scene does
+// (water.share, water.pond and water.beach, from scene.ts). Everything swims away from the cursor. A
+// still frame for reduced motion. On the page's [data-boids] canvas, from startFish() (after
+// startWater()).
 import { water } from './stream';
 
 type V = { x: number; y: number };
@@ -31,7 +33,7 @@ const HOLD_PHASE = Math.random() * 6.283;
 const PACE = 1.69; // 1.3 x 1.3
 
 class Fish {
-  type: 'fish' | 'predator' | 'salmon' | 'koi' = 'fish';
+  type: 'fish' | 'predator' | 'salmon' | 'koi' | 'damsel' = 'fish';
   x: number;
   y: number;
   v: V = { x: rand(-1, 1), y: rand(-1, 1) };
@@ -64,6 +66,10 @@ class Fish {
   angMomentum = 0.1;
   separationScale = 0.2;
   maxAccel = 1;
+  wade = 0; // in the beach scene, the least water it swims in (m): it keeps off the beach and rocks
+  homed = false; // it lives about a spot of its own (the reef's residents): it doesn't wrap round the screen
+  cruise = 0.45; // the least of its speed it swims at, unless resting (see think())
+  glow = 2; // px its colour blurs out round its outline (costly to draw: none on the tiny ones)
   segments: V[] = [];
   shape: V[] = []; // the body as drawn: the segments themselves, unless a kind of fish says otherwise
 
@@ -127,13 +133,88 @@ class Fish {
       this.alarmed = true;
     }
     if (mag(this.acc) > this.maxAccel) this.acc = mul(norm(this.acc), this.maxAccel);
+    const away = this.wade ? this.keepToSea() : null;
     // Steer. While it rests (holding station in a current) the school's pull on it mostly
     // lets up, so it can settle rather than being dragged about (see settle()).
     const k = (dt / (0.001 * this.size)) * (1 - 0.9 * this.hold * water.share);
     this.v = { x: this.v.x + this.acc.x * k, y: this.v.y + this.acc.y * k };
+    if (away) {
+      // Turning (keeping its speed: a fish that brakes barely turns, see move()), the harder the
+      // nearer it is.
+      const speed = mag(this.v);
+      const dir = speed > 1e-3 ? mul(this.v, 1 / speed) : this.heading;
+      const turn = Math.atan2(dir.x * away.want.y - dir.y * away.want.x, dot(dir, away.want));
+      const most = 0.25 * away.urgent;
+      this.v = mul(rotate(dir, Math.max(-most, Math.min(most, turn))), Math.max(speed, 0.8 * this.speed));
+    }
     const m = mag(this.v);
     if (m > this.speed) this.v = mul(this.v, this.speed / m);
     this.settle(now);
+    // Turn instead of brake: unless it's resting (holding station in a current), it never slows
+    // below about half its speed. When it changes its mind (the school, a predator, the cursor,
+    // the end of a rest) it swings round from the way it's facing, rather than slowing through a
+    // stop and setting off the other way: a fish that barely moves barely turns (see move()), so
+    // it would sit there, seemingly frozen, till it had come round.
+    const floor = this.cruise * this.speed * (1 - this.hold * water.share);
+    const now_m = mag(this.v);
+    if (now_m < floor) {
+      const from = this.heading;
+      const want = now_m > 1e-4 ? mul(this.v, 1 / now_m) : from;
+      const turn = Math.atan2(from.x * want.y - from.y * want.x, dot(from, want));
+      this.v = mul(rotate(from, Math.max(-0.12, Math.min(0.12, turn))), floor);
+    }
+  }
+
+  // In the beach scene: it keeps to water deep enough for it (`wade`), turning away well before the
+  // shallows (up the beach and on the rocks standing out of it, too). It looks ahead along its way
+  // about three turning circles' worth (further for a shark, which turns wider), and the nearer
+  // and shallower the water there, the more urgently it turns: at first only to run along the
+  // shore, then, nearer, out to sea. Its urge to go that way (acc, which steers it from frame to
+  // frame) gives up whatever of it pointed into the shallows, so the school's pull doesn't keep
+  // turning it back. The screen's edges count as shallows too, shoaling over their last few tens of
+  // px (it doesn't wrap round: across the screen might be the beach). Returns which way to turn and
+  // how urgently (0-1), or null if it needn't.
+  keepToSea() {
+    if (!water.depth) return null;
+    const speed = mag(this.v);
+    const dir = speed > 1e-3 ? mul(this.v, 1 / speed) : this.heading;
+    const look = (3 * this.speed) / this.angMomentum;
+    const near = (d: number, room: number) => {
+      const k = Math.min(1, Math.max(0, 1 - (d - this.wade) / room));
+      return k * k * (3 - 2 * k); // 0 with `room` m to spare, 1 at the least it swims in
+    };
+    let urgent = near(this.deep(this.x, this.y), 1);
+    let at: V = this;
+    for (const t of [0.25, 0.5, 0.75, 1]) {
+      const p = add(this, dir, t * look);
+      const k = near(this.deep(p.x, p.y), 1.5) * (1.15 - 0.4 * t);
+      if (k > urgent) [urgent, at] = [k, p];
+    }
+    if (urgent <= 0) return null;
+    urgent = Math.min(1, urgent);
+    const e = 12;
+    const deeper = norm({ x: this.deep(at.x + e, at.y) - this.deep(at.x - e, at.y), y: this.deep(at.x, at.y + e) - this.deep(at.x, at.y - e) });
+    let along = { x: -deeper.y, y: deeper.x };
+    if (dot(along, dir) < 0) along = mul(along, -1);
+    const want = norm(add(mul(along, 1 - urgent), mul(deeper, urgent + 0.25)));
+    const into = dot(this.acc, deeper);
+    if (into < 0) this.acc = add(this.acc, deeper, -into * urgent);
+    this.acc = add(this.acc, want, 0.3 * this.maxAccel * urgent);
+    if (mag(this.acc) > this.maxAccel) this.acc = mul(norm(this.acc), this.maxAccel);
+    return { want, urgent };
+  }
+
+  // How deep the water is at (x, y) as it sees it (m), the screen's edges shoaling (keepToSea()):
+  // 1 m per 30 px in from them, their corners rounded off, and blended smoothly into the real
+  // depth where they meet the shore, so that in a corner the way to deeper water points out of
+  // it, not along one side into the other.
+  deep(x: number, y: number) {
+    const [w, h, round] = [window.innerWidth, window.innerHeight, 150];
+    const [dx, dy] = [Math.min(x, w - x), Math.min(y, h - y)];
+    const edge = (dx < round && dy < round ? round - Math.hypot(round - dx, round - dy) : Math.min(dx, dy)) / 30;
+    const d = water.depth!(x, y);
+    const k = Math.max(1 - Math.abs(d - edge), 0); // a smooth minimum, over 1 m
+    return Math.min(d, edge) - 0.25 * k * k;
   }
 
   // Holding station: its way over the bed drops to a tenth (the school still nudges it apart),
@@ -164,8 +245,19 @@ class Fish {
     if (mag(face) > 1e-3) this.heading = norm(lerp(this.heading, norm(face), this.angMomentum * PACE * Math.max(grip, 0.3)));
     const m = mag(swim);
     this.effort = m / (this.speed * PACE);
+    const from = { x: this.x, y: this.y };
     this.x += this.heading.x * m + drift.x;
     this.y += this.heading.y * m + drift.y;
+    // In the beach scene the shore is a wall too, should it ever get that close (chased, say): it
+    // can't swim into water too shallow to swim in, but slides along it.
+    if (this.wade && water.depth && this.deep(this.x, this.y) < 0.3 && this.deep(this.x, this.y) < this.deep(from.x, from.y)) {
+      const e = 6;
+      const deeper = norm({ x: this.deep(from.x + e, from.y) - this.deep(from.x - e, from.y), y: this.deep(from.x, from.y + e) - this.deep(from.x, from.y - e) });
+      const step = sub(this, from);
+      const slide = add(step, deeper, -Math.min(0, dot(step, deeper)));
+      Object.assign(this, add(from, slide));
+      if (this.deep(this.x, this.y) < 0.3) Object.assign(this, from);
+    }
     for (const s of this.segments) {
       s.x += drift.x;
       s.y += drift.y;
@@ -177,7 +269,7 @@ class Fish {
     else if (this.x < -out) jump.x = w + 2 * out;
     if (this.y > h + out) jump.y = -(h + 2 * out);
     else if (this.y < -out) jump.y = h + 2 * out;
-    if (jump.x || jump.y) for (const p of [this, ...this.segments]) Object.assign(p, add(p, jump));
+    if ((jump.x || jump.y) && !this.wade && !this.homed) for (const p of [this, ...this.segments]) Object.assign(p, add(p, jump));
     this.updateSegments(now * PACE);
   }
 
@@ -227,7 +319,7 @@ class Fish {
     ctx.closePath();
     ctx.fillStyle = color;
     ctx.shadowColor = color;
-    ctx.shadowBlur = 2;
+    ctx.shadowBlur = this.glow;
     ctx.fill();
   }
 
@@ -578,6 +670,70 @@ function koiPattern() {
   return { base: css(base), fin: css(base === black ? black : white, 0.55), patches };
 }
 
+// What the reef's damselfish keep an eye on, each frame: the sharks, the cursor, and the time step.
+let sharks: Fish[] = [];
+let cursor: V | null = null;
+let step = 1 / 60;
+type Home = { x: number; y: number; r: number };
+// Danger near a point: a shark within `reach` px of it, or the cursor within `hand` px.
+const danger = (p: V, reach: number, hand: number) => sharks.find((f) => dist(f, p) < reach) ?? (cursor && dist(cursor, p) < hand ? cursor : null);
+
+// Damselfish (and chromis) for the reef: a cloud of small fish over each of the big coral colonies,
+// each hovering about a spot of its own over the coral that wanders slowly round it, milling with its
+// neighbours. When a shark comes near the colony (or the cursor near them), the whole cloud dives
+// down into the coral, packing in near its middle and tucking in (smaller and fainter, as if among
+// its branches); once the danger's past they drift back up, a few at a time.
+class Damsel extends Fish {
+  home: Home;
+  spot = rand(0, 6.283); // where it hovers: an angle round the colony, and how far out (of its reach)
+  out = rand(0.15, 0.7);
+  hiding = 0; // s more it stays hidden
+  tuck = 0; // eases to 1 while it's tucked into the coral
+
+  constructor(home: Home, color: string) {
+    super(home.x + rand(-0.4, 0.4) * home.r, home.y + rand(-0.4, 0.4) * home.r);
+    this.type = 'damsel';
+    this.homed = true;
+    this.glow = 0;
+    this.home = home;
+    this.size = rand(2.6, 3.4);
+    this.speed = 1.1;
+    this.color = color;
+    this.period = (rand(0.8, 1.2) * 50 * this.size) / 3;
+    this.amplitude = (rand(0.8, 1.2) * 3 * this.size) / 5;
+    this.eyesight = 45;
+    this.personalSpace = 7;
+    this.separationScale = 0.4;
+    this.flockDistance = 2500;
+    this.matchVelFactor = 10;
+  }
+
+  settle(now: number) {
+    if (danger(this.home, 0.6 * this.home.r + 120, 110)) this.hiding = Math.max(this.hiding, rand(1.5, 3.5));
+    else this.hiding = Math.max(0, this.hiding - step);
+    const hidden = this.hiding > 0;
+    this.spot += 0.15 * step * Math.sin(now / 3000 + this.phase);
+    const reach = this.home.r * (hidden ? 0.18 : this.out);
+    const to = sub({ x: this.home.x + reach * Math.cos(this.spot), y: this.home.y + reach * Math.sin(this.spot) }, this);
+    const pace = this.speed * (hidden ? 1 : 0.55) * Math.min(1, Math.max(0.15, mag(to) / 40));
+    // Its urge to swim (acc, which steers it from frame to frame) turns to its spot, the cloud's
+    // pull only adding to it, or the cloud would carry it off its colony.
+    const want = mul(norm(to), pace);
+    this.acc = mul(sub(want, this.v), hidden ? 0.08 : 0.04);
+    this.v = lerp(this.v, want, hidden ? 0.2 : 0.08);
+    const tucked = hidden && mag(to) < 0.3 * this.home.r;
+    this.tuck += ((tucked ? 1 : 0) - this.tuck) * 0.06;
+    this.cruise = tucked ? 0.05 : 0.25; // hovering, it barely swims; tucked in, hardly at all
+  }
+
+  draw(ctx: CanvasRenderingContext2D) {
+    const alpha = ctx.globalAlpha;
+    ctx.globalAlpha = alpha * (1 - 0.55 * this.tuck);
+    this.outline(ctx, this.sizeMult * (1 - 0.25 * this.tuck));
+    ctx.globalAlpha = alpha;
+  }
+}
+
 export function startFish() {
   const canvas = document.querySelector<HTMLCanvasElement>('[data-boids]');
   const ctx = canvas?.getContext('2d');
@@ -597,9 +753,53 @@ export function startFish() {
 
     // Fewer fish on small screens, same density as the original on a laptop.
     // (All made again, in new places and patterns, when the water is rerolled: water.generation.)
-    const [reef, run, pond]: Fish[][] = [[], [], []];
+    const [reef, run, pond, sea, residents]: Fish[][] = [[], [], [], [], []];
+    // The reef's residents, about its coral (water.colonies, from scene.ts): a cloud of damselfish
+    // over each big colony on screen, all of one kind (blue chromis, green chromis or yellow damsels).
+    let residentsFor: unknown = null;
+    const settleIn = () => {
+      residents.length = 0;
+      residentsFor = water.colonies;
+      const colonies = water.colonies ?? [];
+      const kinds = [[60, 150, 255], [70, 215, 205], [255, 210, 60]];
+      for (const c of colonies) {
+        if (c.r < 70 || c.x < -c.r / 2 || c.x > w + c.r / 2 || c.y < -c.r / 2 || c.y > h + c.r / 2) continue;
+        const [r, g, b] = kinds[Math.floor(rand(0, kinds.length))];
+        for (let i = 0; i < Math.round(rand(10, 16)); i++) {
+          const k = rand(0.85, 1.15);
+          residents.push(new Damsel(c, `rgb(${[r, g, b].map((v) => Math.min(255, Math.round(v * k))).join()})`));
+        }
+      }
+      for (const f of residents) f.initSegments();
+    };
+    // The beach scene's: the reef's fish and its sharks again, in water deep enough for them (sharks
+    // keeping out past the break), placed once the waves' seabed is known (water.depth).
+    let seaFor: unknown = null;
+    const stock = () => {
+      sea.length = 0;
+      seaFor = water.depth;
+      const wet = (wade: number) => {
+        for (let k = 0; k < 200; k++) {
+          const p = { x: rand(40, w - 40), y: rand(40, h - 40) };
+          if (water.depth!(p.x, p.y) > wade + 1.5) return p;
+        }
+        return null;
+      };
+      const count = Math.round(Math.min(60, Math.max(20, (w * h) / 18000)));
+      for (let i = 0; i < count + 2; i++) {
+        const wade = i < count ? 0.8 : 3;
+        const p = wet(wade);
+        if (!p) continue;
+        const f = i < count ? new Fish(p.x, p.y) : new Predator(p.x, p.y);
+        f.wade = wade;
+        f.initSegments();
+        sea.push(f);
+      }
+    };
     const populate = () => {
       for (const school of [reef, run, pond]) school.length = 0;
+      seaFor = null;
+      residentsFor = null;
       const count = Math.round(Math.min(80, Math.max(25, (w * h) / 14000)));
       for (let i = 0; i < count; i++) reef.push(new Fish(rand(0, w), rand(0, h)));
       reef.push(new Predator(rand(0, w), rand(0, h)), new Predator(rand(0, w), rand(0, h)));
@@ -622,11 +822,21 @@ export function startFish() {
       last = now;
       // The reef fish in the ocean, the salmon in the stream, the koi in the pond: each school only
       // swims (and shows, fading) while its scene does.
+      const reefWeight = Math.max(0, 1 - water.share - water.pond - water.beach);
       const schools: [Fish[], number][] = [
-        [reef, Math.max(0, 1 - water.share - water.pond)],
+        [residents, reefWeight],
+        [reef, reefWeight],
         [run, water.share],
         [pond, water.pond],
+        [sea, water.beach],
       ];
+      if (water.beach >= 0.003 && water.depth && seaFor !== water.depth) stock();
+      if (reefWeight >= 0.003 && water.colonies && residentsFor !== water.colonies) settleIn();
+      // The residents watch the reef's sharks (which only ever hunt the schooling fish: they never see
+      // the residents) and the cursor.
+      sharks = reef.filter((f) => f.type === 'predator');
+      cursor = pointer;
+      step = dt || 1 / 60;
       if (water.generation !== generation) {
         generation = water.generation;
         populate();
@@ -640,9 +850,28 @@ export function startFish() {
           school[i].move(w, h, now, { x: dx / 60, y: dy / 60 }); // px/s to px per (60 Hz) step
         }
         ctx.globalAlpha = weight;
-        for (let i = school.length - 1; i >= 0; i--) school[i].draw(ctx);
+        for (let i = school.length - 1; i >= 0; i--) {
+          const f = school[i];
+          const lift = school === sea ? water.lift : undefined;
+          if (!lift) {
+            f.draw(ctx);
+            continue;
+          }
+          // In the beach scene, seen through the waves: each part of it lifted up the screen by the
+          // water over it, as the seabed is, so it shifts, and bends, as the swell passes over.
+          const shape = f.shape;
+          f.shape = shape.map((p) => ({ x: p.x, y: p.y + lift(p.x, p.y) }));
+          f.draw(ctx);
+          f.shape = shape;
+        }
       }
       ctx.globalAlpha = 1;
+      // The caustics falling on them (scene.ts's glints), painted only where there's a fish.
+      if (water.glints) {
+        ctx.globalCompositeOperation = 'source-atop';
+        ctx.drawImage(water.glints, 0, 0, w, h);
+        ctx.globalCompositeOperation = 'source-over';
+      }
     };
 
     if (matchMedia('(prefers-reduced-motion: reduce)').matches) {

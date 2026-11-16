@@ -33,13 +33,17 @@ export function placeStones(cell: number): Stones {
 // For the fish (fish.ts), kept up to date by scene.ts, all in CSS px with y down: the
 // water's velocity at a point on screen (px per second), how much the stream is showing (0-1),
 // its boulders, which way it runs (a unit vector), and its usual speed (px per second). And how much
-// the pond is showing (0-1), for the koi. `generation` counts rerolls of the random layout, when the
-// fish are made again too.
+// the pond and the beach are showing (0-1), for the koi and the beach's fish; how deep the beach's
+// water is at a point (m) and how far its waves lift what's under them there (px), so its fish keep
+// to the sea and are seen through the waves; the caustics to paint onto the fish (glints); and the
+// reef's coral colonies, for its damselfish. `generation` counts rerolls of the random layout, when
+// the fish are made again too.
 type Point = { x: number; y: number };
-export const water: { at?: (x: number, y: number) => [number, number]; share: number; pond: number; rocks: (Point & { r: number })[]; downstream: Point; speed: number; generation: number } = {
+export const water: { at?: (x: number, y: number) => [number, number]; depth?: (x: number, y: number) => number; lift?: (x: number, y: number) => number; glints?: ImageBitmap | HTMLCanvasElement; colonies?: (Point & { r: number })[]; share: number; pond: number; beach: number; rocks: (Point & { r: number })[]; downstream: Point; speed: number; generation: number } = {
   share: 0,
   generation: 0,
   pond: 0,
+  beach: 0,
   speed: 1,
   rocks: [],
   downstream: { x: 0, y: 0 },

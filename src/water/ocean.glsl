@@ -1,35 +1,45 @@
-// Ocean: foam lines riding a slow swell, their shadows and caustics on the floor below. By day the
-// floor shelves from cyan depths up to sandy shallows on the side the swell rolls towards.
-#define SWELL_LEN 6.0     // cells from one wave crest to the next
-#define SWELL_PERIOD 16.0 // seconds between crests
-#define SWELL_AMP 0.12    // cells the foam surges forward and back with each wave
-#define FOAM_CELL 0.7     // the foam's cells' size, in cells
-uniform sampler2D u_reef; // the coral (reef.ts), drawn once: its colour, and how much covers each point in alpha
-uniform vec2 u_bedView;   // how much of the floor that covers, in cells
+// Reef: a long, slow swell rolling in over coral (reef.ts) towards the sand on one side of the
+// screen, seen straight from above. It rides the surf model (surf.ts, surf.glsl) over the reef's own
+// seabed (reef.ts: reefBed()): the waves slow and bend round the coral, and over the shallowest heads
+// (and at the sand's edge) they build and spill a little, leaving lace that thins as they run on.
+// By day the floor shelves from cyan depths up to sandy shallows; the swell shows in it as faint
+// broad bands, and the caustics brighten under each crest and drape over the coral: on anything
+// standing up they fall a little down and to the right of where they'd fall on the sand, so they
+// break at each tier's edge.
+uniform sampler2D u_reef;     // the coral (reef.ts), drawn once: its colour, and how much covers each point in alpha
+uniform sampler2D u_reefBump; // how high it stands (reef.ts: drawReefHeight()): 1 at TALLEST px
+uniform vec2 u_bedView;       // how much of the floor those cover, in cells
+#define TALLEST 42.0 // reef.ts: TALLEST
+const vec3 LIGHT = vec3(-0.38, -0.38, 0.844); // towards the light: up and to the top left
 
-// Phase of the swell rolling along u_dir; 0 at a crest.
-float swell(vec2 p) {
-  return 6.2831 * (dot(p, u_dir) / SWELL_LEN - u_time / SWELL_PERIOD);
+// How much white water there is: where a wave spills over the shallow coral or at the sand's edge,
+// and the lace it leaves as it runs on, thinning out (beach.glsl: whiteAt(), gentler: no plunging
+// lip, and never solid white).
+float foamAt(Surf s) {
+  float broken = smoothstep(0.2, 0.8, s.foam) * smoothstep(0.0, 4.0, s.run);
+  float ahead = -s.th; // > 0 ahead of the crest
+  float reach = min(1.1, s.run / 12.0);
+  float spill = broken * smoothstep(-0.35, -0.15, ahead) * (1.0 - smoothstep(0.7 * reach, reach, ahead));
+  float wake = s.foam * smoothstep(0.0, 2.0, s.run) * smoothstep(-0.35, -0.15, s.th) * exp(-max(s.th, 0.0) / 0.9);
+  return 0.6 * max(spill, wake);
 }
-
-// The foam rides the swell: each passing wave carries it forward and lets it slip back
-// (bunching it up under the crests), with a slow net drift the same way. Its own shape
-// changes far more slowly than the ripples below.
-float foam(vec2 p) {
-  p += u_dir * (SWELL_AMP * sin(swell(p)) - 0.04 * u_time);
-  return cells(p / FOAM_CELL, u_time * 0.05); // (its lines, and their shadows, thin with the cells)
+// ... drawn as lace at m: as much of the cells' edges as there is foam.
+float white(vec2 m, Surf s) {
+  float amount = foamAt(s);
+  float c = cells(m / 6.0 + u_surfSize.w, u_time * 0.3);
+  return amount < 0.02 ? 0.0 : 1.0 - smoothstep(amount * 0.45 - 0.01, amount * 0.45 + 0.01, c);
 }
 
 vec4 shade(vec2 p) {
+  float hpx = u_res.y / u_cell * CSS; // the screen's height, CSS px
+  vec2 m = vec2(p.x, u_res.y / u_cell - p.y) * CSS * u_surfGrid.w / hpx; // this pixel, m from the top left
+  Surf s = surfAt(m);
   if (u_layer > 0.5) {
-    // Surface: foam lines, transparent between them. Dim at night (it hides the fish
-    // without glowing), near-white by day.
-    float a = (1.0 - smoothstep(0.012, 0.022, foam(p))) * mix(0.425, 0.475, u_day);
-    return vec4(mix(vec3(0.30, 0.43, 0.46), vec3(0.88, 0.98, 1.0), u_day) * a, a);
+    // Surface: the white water, near-white by day, dim by night.
+    float a = white(m, s) * mix(0.55, 0.85, u_day);
+    return vec4(mix(vec3(0.30, 0.43, 0.46), vec3(0.92, 0.98, 1.0), u_day) * a, a);
   }
-  // Floor: caustics brighter under each crest and in the shallows, and the foam's shadow cast
-  // down and to the right. x: 0 at the screen's furthest point along u_dir (the beach), 1 at the
-  // furthest point back.
+  // Floor. x: 0 at the screen's furthest point along u_dir (the sand), 1 at the furthest point back.
   float x = 0.5 - dot(gl_FragCoord.xy - 0.5 * u_res, u_dir) / dot(abs(u_dir), u_res);
   vec3 day = vec3(0.70, 0.86, 0.64);                                // sand at the water's edge
   day = mix(day, vec3(0.42, 0.87, 0.80), smoothstep(0.0, 0.35, x));  // turquoise shallows
@@ -43,9 +53,23 @@ vec4 shade(vec2 p) {
   day = mix(day, mix(coral, day, 0.05 + 0.7 * smoothstep(0.1, 0.9, x)), reef.a);
   night = mix(night, reef.rgb * vec3(0.16, 0.24, 0.30) + 0.4 * night, reef.a);
   vec3 col = mix(night, day, u_day);
-  float caustic = caustics(p, 0.045) * (0.15 + 0.09 * cos(swell(p))) * mix(1.0, 1.6 - 0.8 * x, u_day);
+  // The swell, in faint broad bands: through more water a crest reads a touch deeper and bluer,
+  // through less a trough a touch lighter; and lit from the top left on its slopes.
+  float v = smoothstep(0.1, 0.9, s.H);
+  col *= mix(vec3(1.0), s.shape > 0.0 ? vec3(0.9, 0.95, 1.0) : vec3(1.05, 1.04, 1.02), 0.5 * v * abs(s.shape));
+  float slope = (profile(s.th + 0.25, s.ratio) - profile(s.th - 0.25, s.ratio)) / 0.5;
+  vec2 dS = vec2(tile(shore(m + vec2(2.0, 0.0)), 0.0).x - tile(shore(m - vec2(2.0, 0.0)), 0.0).x,
+                 tile(shore(m + vec2(0.0, 2.0)), 0.0).x - tile(shore(m - vec2(0.0, 2.0)), 0.0).x) / 4.0; // periods per m
+  vec2 grad = -LIFT * 0.5 * s.H * slope * 6.2831853 * dS;
+  float lit = dot(normalize(vec3(-grad, 1.0)), LIGHT) - LIGHT.z;
+  col *= 1.0 + (lit > 0.0 ? 0.5 : 0.3) * lit;
+  // The caustics: brighter under each crest and in the shallows, draping over the coral (falling
+  // down and to the right, as the coral's shadows do, reef.ts: drawReef(), as far as it stands up).
+  float lift = texture2D(u_reefBump, p / u_bedView).r * TALLEST; // px
+  vec2 q = p + vec2(0.6, -0.8) * 0.8 * lift / CSS;
+  float caustic = caustics(q, 0.045) * (0.15 + 0.09 * cos(s.th)) * mix(1.0, 1.6 - 0.8 * x, u_day);
   col += mix(vec3(0.20, 0.42, 0.48), vec3(0.40, 0.75, 0.85), u_day) * caustic;
-  float shadow = 1.0 - smoothstep(0.012, 0.10, foam(p + vec2(-0.24, 0.33))); // deep water: long, soft
-  col *= 1.0 - mix(0.225, 0.15, u_day) * shadow; // half as dark as it was, as the foam is half as opaque
+  // The white water's shadow, cast down and to the right: deep water, so long and soft.
+  col *= 1.0 - mix(0.2, 0.14, u_day) * foamAt(surfAt(m - vec2(17.0, 24.0)));
   return vec4(col, 1.0);
 }
