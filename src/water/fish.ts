@@ -44,7 +44,13 @@ class Fish {
   heading: V;
   effort = 1; // how fast it's swimming through the water, against its top speed
   tuned = 0; // the speed its tail's `period` is tuned for (0: its own top speed); see beat()
-  turn = 0; // the tightest circle it can swim, in body lengths across (half that alarmed); 0: any
+  turn = 0; // the tightest circle it can swim, in body lengths across (half that fleeing); 0: any
+  neck = 1; // segments before this are its rigid head (swimWave())
+  // How quickly its turning and its speed come round to what it wants (0-1, a bigger fish's slower):
+  // it leans into a turn and out of it, and gathers and loses speed, rather than snapping to them.
+  agility = 0.5;
+  spin = 0; // radians a step it's turning
+  glide = 0; // px a step it's swimming through the water
   sway = 0; // the swimming wave's bend just past the tail, -1 to 1 (times effort)
   clock = 0; // its own swimming time, ms: see beat()
   lastNow = 0;
@@ -247,15 +253,18 @@ class Fish {
       let to = norm(lerp(this.heading, norm(face), this.angMomentum * PACE * Math.max(grip, 0.3)));
       // A long fish swims round in a circle no tighter than `turn` body lengths, rather than folding
       // itself round on the spot; barely moving, it can still pivot, slowly.
+      let a = Math.atan2(this.heading.x * to.y - this.heading.y * to.x, dot(this.heading, to));
       if (this.turn) {
-        const radius = (this.alarmed ? 0.5 : 1) * this.turn * (this.body.length - 1) * this.size;
+        const fleeing = this.alarmed && this.type !== 'predator'; // (a shark's alarm is its hunting)
+        const radius = (fleeing ? 0.5 : 1) * this.turn * (this.body.length - 1) * this.size;
         const most = Math.max(mag(swim), 0.3 * this.speed * PACE) / radius; // radians this step
-        const a = Math.atan2(this.heading.x * to.y - this.heading.y * to.x, dot(this.heading, to));
-        if (Math.abs(a) > most) to = rotate(this.heading, Math.sign(a) * most);
+        a = Math.max(-most, Math.min(most, a));
       }
-      this.heading = to;
-    }
-    const m = mag(swim);
+      this.spin += (a - this.spin) * this.agility;
+    } else this.spin *= 1 - this.agility;
+    this.heading = rotate(this.heading, this.spin);
+    this.glide += (mag(swim) - this.glide) * this.agility;
+    const m = this.glide;
     this.effort = m / (this.speed * PACE);
     const from = { x: this.x, y: this.y };
     this.x += this.heading.x * m + drift.x;
@@ -296,6 +305,28 @@ class Fish {
     if (this.lastNow) this.clock += (now - this.lastNow) * pace;
     this.lastNow = now;
     return this.clock;
+  }
+
+  // Swimming the way a big fish does (the salmon, the koi, the sharks): its spine follows the path of
+  // its head, stiffly, so it curves through turns; on top of that a wave of side-to-side movement runs
+  // from head to tail, about one wavelength along the body, growing from almost nothing at the head
+  // to `amplitude` at the tail, its head (to `neck`) one rigid piece. (The small fish swing their
+  // heads and let the body follow, updateSegments(), which reads as flapping on a fish this big.)
+  swimWave(now: number) {
+    const s = this.segments;
+    s[0] = { x: this.x, y: this.y };
+    for (let i = 1; i < s.length; i++) s[i] = sub(s[i - 1], mul(norm(sub(s[i - 1], s[i])), this.size));
+    const beat = this.beat(now) / this.period + this.phase;
+    this.shape = s.map((p, i) => {
+      const u = i / (s.length - 1); // 0 at the head, 1 at the tail
+      const side = ortho(i ? sub(s[i - 1], s[i]) : sub(s[0], s[1]));
+      return add(p, mul(side, this.amplitude * Math.max(this.effort, 0.65) * (0.06 + 0.94 * u * u) * Math.sin(beat - 5.6 * u)));
+    });
+    // The head is one rigid piece, from the neck to the tip of the snout: no bend within it.
+    const neck = this.shape[this.neck];
+    const snout = sub(this.shape[0], neck);
+    for (let i = 1; i < this.neck; i++) this.shape[i] = add(neck, mul(snout, (this.neck - i) / this.neck));
+    this.sway = Math.cos(beat - 5.6) * Math.max(this.effort, 0.65); // how fast the tail is sweeping sideways, -1 to 1
   }
 
   // The body follows the head, with a swimming wiggle that grows towards the tail.
@@ -375,9 +406,11 @@ class Predator extends Fish {
     this.finColor = `rgb(${r - 10},${g - 10},${b - 10})`;
     this.angMomentum = 0.047; // turn radius ~ speed / angMomentum: 1.5x wider than 0.07, so fish out-turn it
     this.period = (50 * this.size * 0.85 * PACE) / 1.5; // half again the original beat (it looked to drift)
-    this.amplitude = 3 * this.size * 1.2;
+    this.amplitude = 2 * this.size; // how far the tail swings either side (swimWave())
     this.body = PREDATOR_BODY;
     this.turn = 1;
+    this.neck = 3;
+    this.agility = 0.12;
     this.sizeMult = 1.5;
     this.eyesight = 200;
     this.flockDistance = 2000;
@@ -390,6 +423,11 @@ class Predator extends Fish {
     if (other.type !== 'fish') return;
     this.steer(other, 1, true);
     this.alarmed = true; // on the hunt
+  }
+
+  // Swimming the way a big fish does: a steady head and a wave down to its tail (Fish.swimWave()).
+  updateSegments(now: number) {
+    this.swimWave(now);
   }
 
   draw(ctx: CanvasRenderingContext2D) {
@@ -408,7 +446,6 @@ class Predator extends Fish {
 // behind the nearest boulder in reach (or holds where it is), and they swim round the boulders.
 class Salmon extends Fish {
   head: string;
-  neck = SALMON_NECK; // segments before this are its rigid head
   tailLength = 2.55; // the tail fin, in segment lengths
   tailWidth = 0.35;
 
@@ -420,6 +457,8 @@ class Salmon extends Fish {
     this.size = 6.5 * grown; // about 90-120 px long
     this.body = SALMON_BODY;
     this.turn = 1;
+    this.neck = SALMON_NECK;
+    this.agility = 0.2;
     // The same reds and greens on every fish, each a touch brighter or darker (+-8%) and more or
     // less vivid (-15% to +10%).
     const light = rand(0.92, 1.08);
@@ -470,26 +509,9 @@ class Salmon extends Fish {
     this.v = lerp(this.v, lerp(upstream, stay, this.hold), 0.08 * water.current.strength);
   }
 
-  // Swimming. Its spine follows the path of its head, stiffly, so it curves through turns; on
-  // top of that a wave of side-to-side movement runs from head to tail, about one wavelength
-  // along the body, growing from almost nothing at the head to `amplitude` at the tail. (The
-  // other fish swing their heads and let the body follow, which reads as flapping on a fish
-  // this big.)
+  // Swimming the way a big fish does (see Fish.swimWave()).
   updateSegments(now: number) {
-    const s = this.segments;
-    s[0] = { x: this.x, y: this.y };
-    for (let i = 1; i < s.length; i++) s[i] = sub(s[i - 1], mul(norm(sub(s[i - 1], s[i])), this.size));
-    const beat = this.beat(now) / this.period + this.phase;
-    this.shape = s.map((p, i) => {
-      const u = i / (s.length - 1); // 0 at the head, 1 at the tail
-      const side = ortho(i ? sub(s[i - 1], s[i]) : sub(s[0], s[1]));
-      return add(p, mul(side, this.amplitude * Math.max(this.effort, 0.65) * (0.06 + 0.94 * u * u) * Math.sin(beat - 5.6 * u)));
-    });
-    // The head is one rigid piece, from the neck to the tip of the snout: no bend within it.
-    const neck = this.shape[this.neck];
-    const snout = sub(this.shape[0], neck);
-    for (let i = 1; i < this.neck; i++) this.shape[i] = add(neck, mul(snout, (this.neck - i) / this.neck));
-    this.sway = Math.cos(beat - 5.6) * Math.max(this.effort, 0.65); // how fast the tail is sweeping sideways, -1 to 1
+    this.swimWave(now);
   }
 
   // The tail fin: two lobes pivoting on the end of the body, lying over each other. It beats like
@@ -560,6 +582,7 @@ class Koi extends Salmon {
     this.size = 7 * grown; // about 50-150 px long, with the tail
     this.body = KOI_BODY;
     this.turn = 0; // its own steering (settle()) already keeps to its circle
+    this.agility = 0.15;
     this.neck = 3;
     this.speed = 1.2;
     const { base, fin, patches } = koiPattern();
