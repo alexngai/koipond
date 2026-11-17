@@ -21,6 +21,9 @@ const SCENES = { ocean: SURF_GLSL + OCEAN, stream: STREAM, pond: POND, beach: SU
 export type Scene = keyof typeof SCENES;
 export type Time = 'day' | 'night';
 export const NAMES = Object.keys(SCENES) as Scene[];
+// How much current each scene's water has (1: the stream's, round its boulders): the fish swim
+// against it (stream.ts: water.current), and it fades with the water that has it.
+const CURRENTS: Record<Scene, number> = { ocean: 0, stream: 1, pond: 0, beach: 0 };
 const VERT = `attribute vec2 p; void main() { gl_Position = vec4(p, 0.0, 1.0); }`;
 const UNIFORMS = ['u_time', 'u_cell', 'u_layer', 'u_day', 'u_weight', 'u_res', 'u_dir', 'u_seed', 'u_stones', 'u_stoneCount', 'u_pools', 'u_poolCount', 'u_current', 'u_debug', 'u_foamView', 'u_dt', 'u_foam', 'u_bed', 'u_flowMap', 'u_bedView', 'u_reef', 'u_surfTex', 'u_surfGrid', 'u_surfSize', 'u_surfFrame', 'u_rocks', 'u_bump', 'u_scenes', 'u_reefBump'];
 const CELL = 220; // CSS px across a foam cell
@@ -178,12 +181,14 @@ export function startWater(start: { scene: Scene; time: Time; root: HTMLElement;
     let day = time === 'day' ? 1 : 0;
     const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-    // Let the fish feel the stream's current, fading in and out with the scene, and see its boulders.
-    water.downstream = { x: DIR[0], y: -DIR[1] };
-    water.speed = CURRENT * CELL;
-    water.at = (x, y) => {
+    // The water's current, for the fish: which way and how fast it runs, round the boulders (the
+    // stream's), at the strength the water showing has (CURRENTS, eased with the scenes in draw()).
+    const current = water.current;
+    current.downstream = { x: DIR[0], y: -DIR[1] };
+    current.speed = CURRENT * CELL;
+    current.at = (x, y) => {
       const [vx, vy] = flow(STONES, POOLS, DIR, x / CELL, (stage.h - y) / CELL, performance.now() / 1000);
-      return [vx * CELL * weights.stream, -vy * CELL * weights.stream];
+      return [vx * CELL * current.strength, -vy * CELL * current.strength];
     };
     // Which surf grid a program reads (surf.glsl), and on which texture unit.
     const surfUniforms = (gl: WebGLRenderingContext, u: Record<string, WebGLUniformLocation | null>, g: SurfGrid, s: Swell, unit: number) => {
@@ -270,7 +275,8 @@ export function startWater(start: { scene: Scene; time: Time; root: HTMLElement;
       flecks.draw(now / 1000, weights.beach, day);
       reefFlecks.draw(now / 1000, weights.ocean, day);
       life.draw(now / 1000, dt, weights.beach, day, flecks.grid);
-      water.share = weights.stream;
+      current.strength = NAMES.reduce((sum, n) => sum + weights[n] * CURRENTS[n], 0);
+      water.stream = weights.stream;
       water.pond = weights.pond;
       water.beach = weights.beach;
       drawn = now;
@@ -386,7 +392,7 @@ export function startWater(start: { scene: Scene; time: Time; root: HTMLElement;
       }
       // The reef's coral colonies, for its fish to live about (CSS px, y down).
       water.colonies = REEF.colonies.map((c) => ({ x: c.x, y: stage.h - c.y, r: c.r }));
-      water.rocks = Array.from({ length: STONES.count }, (_, i) => ({
+      current.rocks = Array.from({ length: STONES.count }, (_, i) => ({
         x: STONES.data[4 * i] * CELL,
         y: stage.h - STONES.data[4 * i + 1] * CELL,
         r: STONES.data[4 * i + 2] * CELL,
@@ -500,7 +506,7 @@ export function startWater(start: { scene: Scene; time: Time; root: HTMLElement;
           ({ DIR, SEED, STONES, POOLS, REEF, REEF_SWELL, SURF } = layout());
           reefGrid = null;
           ({ surface, pads, flecks, reefFlecks, life } = extras());
-          water.downstream = { x: DIR[0], y: -DIR[1] };
+          current.downstream = { x: DIR[0], y: -DIR[1] };
           water.generation++;
           area = [0, 0];
           resize();

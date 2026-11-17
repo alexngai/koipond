@@ -92,10 +92,11 @@ What composing them would take, easiest first:
 - [ ] **Your choice of fish in any water** (`fish: [{ kind: 'koi', count: 8 }]`). Each school is tied
       to its scene now (`fish.ts`'s `frame()`: the reef's school fades with the reef, the salmon with
       the stream, …); instead a list per pond, each kind still getting what it needs from the water:
-      the salmon the current (`water.at`), the beach's fish its depth, to keep off the sand
+      the salmon a current to hold station in (`water.current`), the beach's fish its depth, to keep off the sand
       (`water.depth`), the damselfish the reef's coral (`water.colonies`).
-- [ ] **The current as part of the water**, not of the stream scene: the fish read the stream's
-      weight (`water.share`) as how strong it is.
+- [x] **The current as part of the water**, not of the stream scene: `water.current` (strength,
+      direction, speed, flow at a point, the boulders it parts round), which every fish swims in;
+      each water says how much it has (`CURRENTS` in `scene.ts`; only the stream's, for now).
 - [ ] **Your choice of extras** (`extras: ['lilies', 'rain', 'leaves', 'gulls']`): the 2D layers
       (`pond.ts`, the leaves and bubbles in `stream.ts`, `shore.ts`) drawn over any water, each fading
       with its own weight rather than its scene's.
