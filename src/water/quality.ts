@@ -1,7 +1,8 @@
 // How much the water and fish spend on their looks: stepped down to keep frames coming at about 60 a
 // second where the screen is big or the machine slow, and back up when there's room again. It watches
 // the frames itself, and remembers where it settled for this screen; scene.ts and fish.ts read
-// `quality.now` and listen for changes. ?quality=N (on the new tab page or the wallpaper) pins a level (0, all of it, to 4).
+// `quality.now` and listen for changes. Started by createPond() (index.ts), which can pin a level
+// instead (0, all of it, to 4), and stopped with it.
 // Each level: the surface's and the fish's canvas px per CSS px (at most; never more than the
 // screen's), the floor's, and whether the fish catch the caustics.
 export const LEVELS = [
@@ -15,12 +16,11 @@ const WINDOW = 1500; // ms of frames judged at a time
 const SLOW = 18.5; // ms a frame on average: too slow (under ~54 a second)
 const ROOMY = 17.2; // ... with room to spare (60 a second, give or take)
 
-const key = `water-quality:${screen.width}x${screen.height}@${window.devicePixelRatio}`;
-const pinned = new URLSearchParams(location.search).get('quality');
 const clamp = (n: number) => Math.min(LEVELS.length - 1, Math.max(0, Math.round(n) || 0));
-let level = clamp(Number(pinned ?? (() => { try { return localStorage.getItem(key); } catch { return 0; } })()));
-const listeners: (() => void)[] = [];
-let quiet = performance.now() + 3000; // judging nothing till then: starting up, a new scene, a resize
+let key = ''; // where it remembers its level, for this screen
+let level = 0;
+let listeners: (() => void)[] = [];
+let quiet = 0; // judging nothing till then: starting up, a new scene, a resize
 
 export const quality = {
   get now() {
@@ -33,6 +33,15 @@ export const quality = {
   settle(ms = 2000) {
     quiet = Math.max(quiet, performance.now() + ms);
   },
+  // From where it last settled on this screen (or `pin`, held), watching till `signal` aborts.
+  start(pin: number | null, signal: AbortSignal) {
+    key = `koipond-quality:${screen.width}x${screen.height}@${window.devicePixelRatio}`;
+    level = clamp(pin ?? Number((() => { try { return localStorage.getItem(key); } catch { return 0; } })()));
+    listeners = [];
+    quiet = performance.now() + 3000;
+    signal.addEventListener('abort', () => (listeners = []));
+    if (pin === null && !matchMedia('(prefers-reduced-motion: reduce)').matches) watch(signal);
+  },
 };
 
 const set = (to: number) => {
@@ -44,7 +53,7 @@ const set = (to: number) => {
   for (const f of listeners) f();
 };
 
-if (pinned === null && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+function watch(signal: AbortSignal) {
   let prev = performance.now();
   let [sum, n, start] = [0, 0, prev];
   let calm = 0; // windows in a row with room to spare
@@ -94,7 +103,7 @@ if (pinned === null && !matchMedia('(prefers-reduced-motion: reduce)').matches) 
       judge(sum / n, now);
       [sum, n, start] = [0, 0, now];
     }
-    requestAnimationFrame(tick);
+    if (!signal.aborted) requestAnimationFrame(tick);
   };
   requestAnimationFrame(tick);
 }

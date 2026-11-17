@@ -40,7 +40,8 @@ export function placeStones(cell: number): Stones {
 // reef's coral colonies, for its damselfish. `generation` counts rerolls of the random layout, when
 // the fish are made again too.
 type Point = { x: number; y: number };
-export const water: { at?: (x: number, y: number) => [number, number]; depth?: (x: number, y: number) => number; lift?: (x: number, y: number) => number; glints?: ImageBitmap | HTMLCanvasElement; colonies?: (Point & { r: number })[]; share: number; pond: number; beach: number; rocks: (Point & { r: number })[]; downstream: Point; speed: number; generation: number } = {
+export const water: { at?: (x: number, y: number) => [number, number]; depth?: (x: number, y: number) => number; lift?: (x: number, y: number) => number; glints?: ImageBitmap | HTMLCanvasElement; colonies?: (Point & { r: number })[]; day: boolean; share: number; pond: number; beach: number; rocks: (Point & { r: number })[]; downstream: Point; speed: number; generation: number } = {
+  day: true,
   share: 0,
   generation: 0,
   pond: 0,

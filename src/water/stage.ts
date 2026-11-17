@@ -7,21 +7,24 @@
 // The zoom goes by the size of the screen, not the window: a phone's address bar coming and going, or
 // a desktop window made small, doesn't change it.
 // About 0.65 on a phone (as if it were half again as wide), 1 from a tablet up.
-const zoom = Math.min(1, Math.max(0.5, Math.sqrt(screen.width * screen.height) / 900));
+let z = 0;
+const zoom = () => z || (z = Math.min(1, Math.max(0.5, Math.sqrt(screen.width * screen.height) / 900)));
 
 export const stage = {
-  zoom,
+  get zoom() {
+    return zoom();
+  },
   get w() {
-    return window.innerWidth / zoom;
+    return window.innerWidth / zoom();
   },
   get h() {
-    return window.innerHeight / zoom;
+    return window.innerHeight / zoom();
   },
   get sw() {
-    return screen.width / zoom;
+    return screen.width / zoom();
   },
   get sh() {
-    return screen.height / zoom;
+    return screen.height / zoom();
   },
-  dpr: (cap: number) => Math.min(window.devicePixelRatio || 1, cap) * zoom,
+  dpr: (cap: number) => Math.min(window.devicePixelRatio || 1, cap) * zoom(),
 };

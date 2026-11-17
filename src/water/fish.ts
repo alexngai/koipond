@@ -2,8 +2,8 @@
 // damselfish living about its coral; salmon in the stream; koi in the pond; and on the beach the reef's
 // school again, keeping to the sea. Each school swims (and shows, fading) only while its scene does
 // (water.share, water.pond and water.beach, from scene.ts). Everything swims away from the cursor. A
-// still frame for reduced motion. On the page's [data-boids] canvas, from startFish() (after
-// startWater()).
+// still frame for reduced motion. On the [data-boids] canvas in `root` (index.ts makes it), from
+// startFish() (after startWater()), till `signal` aborts.
 import { water } from './stream';
 import { quality } from './quality';
 import { stage } from './stage';
@@ -758,13 +758,13 @@ class Damsel extends Fish {
   }
 }
 
-export function startFish() {
-  const canvas = document.querySelector<HTMLCanvasElement>('[data-boids]');
+export function startFish(root: HTMLElement, signal: AbortSignal) {
+  const canvas = root.querySelector<HTMLCanvasElement>('[data-boids]');
   const ctx = canvas?.getContext('2d');
   // Their shadows on the floor, cast the way the foam's are but shorter (they swim lower): drawn as
   // silhouettes at half the resolution off the page (`shapes`), then blurred onto a canvas of their
   // own beneath them. Where a canvas can't blur (Safari), at a fifth of it, stretched to soften them.
-  const shadows = document.querySelector<HTMLCanvasElement>('[data-fish-shadows]');
+  const shadows = root.querySelector<HTMLCanvasElement>('[data-fish-shadows]');
   const stx = shadows?.getContext('2d');
   const shapes = document.createElement('canvas');
   const htx = shapes.getContext('2d');
@@ -785,7 +785,7 @@ export function startFish() {
       htx.setTransform(SHADOW.scale, 0, 0, SHADOW.scale, 0, 0);
     };
     resize();
-    window.addEventListener('resize', resize);
+    window.addEventListener('resize', resize, { signal });
     quality.onChange(resize);
 
     // Fewer fish on small screens, same density as the original on a laptop.
@@ -850,8 +850,8 @@ export function startFish() {
     let generation = water.generation;
 
     let pointer: V | null = null;
-    window.addEventListener('pointermove', (e) => (pointer = { x: e.clientX / stage.zoom, y: e.clientY / stage.zoom }), { passive: true });
-    document.addEventListener('pointerleave', () => (pointer = null));
+    window.addEventListener('pointermove', (e) => (pointer = { x: e.clientX / stage.zoom, y: e.clientY / stage.zoom }), { passive: true, signal });
+    document.addEventListener('pointerleave', () => (pointer = null), { signal });
 
     // Fish move a fixed step at a time (as in the original): 60 a second, whatever the frame rate.
     const STEP = 1000 / 60; // ms
@@ -883,7 +883,7 @@ export function startFish() {
       }
       ctx.clearRect(0, 0, w, h);
       htx.clearRect(0, 0, w, h);
-      const day = document.documentElement.dataset.time === 'day';
+      const day = water.day;
       for (const [school, weight] of schools) {
         if (weight < 0.003) continue;
         if (school === pond) setLook(day ? 1 : 0.75, day ? 1 : 0.55);
@@ -942,6 +942,7 @@ export function startFish() {
       let lag = 0;
       let prev = performance.now();
       const loop = (now: number) => {
+        if (signal.aborted) return;
         lag += now - prev;
         prev = now;
         if (lag >= STEP - 2) {

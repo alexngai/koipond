@@ -1,8 +1,38 @@
 {
   "name": "koipond",
-  "private": true,
   "version": "1.0.0",
+  "description": "Living water scenes behind a web page: a coral reef, a mountain stream, a koi pond or a beach, by day or by night, with fish that swim away from the cursor. WebGL, no dependencies.",
+  "keywords": [
+    "koi",
+    "pond",
+    "fish",
+    "boids",
+    "water",
+    "webgl",
+    "background",
+    "wallpaper",
+    "animation",
+    "canvas"
+  ],
+  "homepage": "https://github.com/alexngai/koipond#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/alexngai/koipond.git"
+  },
+  "bugs": "https://github.com/alexngai/koipond/issues",
   "type": "module",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/koipond.js"
+    }
+  },
+  "module": "./lib/koipond.js",
+  "types": "./lib/types/index.d.ts",
+  "files": [
+    "lib"
+  ],
+  "sideEffects": false,
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
@@ -10,7 +40,9 @@
     "preview": "vite preview",
     "test": "node --test src/time.test.ts",
     "zip": "npm run build && mkdir -p release && cd dist && zip -qr ../release/koi-pond-simulator-$(node -p \"require('../public/manifest.json').version\").zip . && echo release/koi-pond-simulator-$(node -p \"require('../public/manifest.json').version\").zip",
-    "store": "npm run build && python3 store/render.py"
+    "store": "npm run build && python3 store/render.py",
+    "build:lib": "vite build --mode lib && tsc -p tsconfig.lib.json",
+    "prepare": "npm run build:lib"
   },
   "devDependencies": {
     "@types/chrome": "^0.3.7",

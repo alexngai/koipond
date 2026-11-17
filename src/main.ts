@@ -1,8 +1,8 @@
 // The new tab page: the water and its fish, a clock and a search box over them, and a settings
 // dialog behind the gear, and a button beside it that rerolls the random layout.
 import './style.css';
-import { NAMES, startWater, type Scene, type Time } from './water/scene';
-import { startFish } from './water/fish';
+import { NAMES, type Scene, type Time } from './water/scene';
+import { createPond } from './index';
 import { load, save, valid, type Settings } from './settings';
 import { timeAt } from './time';
 
@@ -17,9 +17,11 @@ settings = { ...settings, ...valid({ scene: query.get('scene'), time: query.get(
 const pick = (): Scene => (settings.scene === 'random' ? NAMES[Math.floor(Math.random() * NAMES.length)] : settings.scene);
 const timeNow = (): Time => (settings.time === 'auto' ? timeAt(settings.dayFrom, settings.nightFrom) : settings.time);
 
+// The water, in the page's own order (under the clock and the buttons): the settings name the reef
+// by its shader, the ocean. ?quality=N holds its detail; ?flow draws the stream's current.
+const pub = (s: Scene) => (s === 'ocean' ? 'reef' : s);
 let time = timeNow();
-const water = startWater({ scene: pick(), time });
-startFish();
+const water = createPond({ scene: pub(pick()), time, zIndex: 'auto', quality: query.has('quality') ? Number(query.get('quality')) : undefined, flow: query.has('flow') });
 
 // The button beside the gear lays the water out afresh (without WebGL there's nothing to reroll).
 const reroll = $<HTMLButtonElement>('[data-reroll]');
@@ -86,7 +88,7 @@ form.addEventListener('input', () => {
   };
   save(settings);
   // Random keeps the scene that's showing, for now: the next tab picks a new one.
-  if (settings.scene !== was.scene && settings.scene !== 'random') water?.setScene(settings.scene);
+  if (settings.scene !== was.scene && settings.scene !== 'random') water?.setScene(pub(settings.scene));
   tick();
   show();
 });

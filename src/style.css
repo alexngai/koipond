@@ -30,27 +30,7 @@ body {
   white-space: nowrap;
 }
 
-/* --- the water and fish: full-window layers, stacked in page order --------------------------- */
-
-.water,
-.boids {
-  position: fixed;
-  inset: 0;
-  width: 100vw;
-  height: 100vh;
-  pointer-events: none;
-  transition: opacity 0.25s;
-}
-/* Rerolling: the water and fish dip out while they're laid out afresh, and back in. */
-.rerolling .water,
-.rerolling .boids {
-  opacity: 0 !important;
-}
-.boids {
-  opacity: 0.9;
-  /* No CSS filters (the fish's shadows and colour are drawn, fish.ts, and the foam fused, goo.ts):
-     over a canvas the size of the screen, redrawn every frame, a filter cost as much as all the water. */
-}
+/* The water and fish (createPond(), src/index.ts) bring their own styles: full-window layers. */
 
 /* --- the clock and search box ---------------------------------------------------------------- */
 
