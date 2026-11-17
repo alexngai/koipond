@@ -60,7 +60,7 @@ Surf surfAt(vec2 m) {
   s.th = 6.2831853 * f;
   s.ratio = s.H / max(GAMMA * s.d, 0.05);
   s.shape = profile(s.th, s.ratio);
-  s.z = LIFT * 0.5 * s.H * s.shape;
+  s.z = LIFT * 0.25 * s.H * s.shape; // the lift up the screen: half the drawn height (surf.ts: surfAt())
   return s;
 }
 

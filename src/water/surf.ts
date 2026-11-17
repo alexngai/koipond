@@ -455,7 +455,9 @@ export function surfAt(g: SurfGrid, s: Pick<Swell, 'period' | 'seed'>, sx: numbe
   const dv = Math.sqrt(Math.max(0, 1 - du * du));
   const dirX = du * tt[0] + dv * nn[0];
   const dirY = du * tt[1] + dv * nn[1];
-  return { th, H, run: pick(g.since), foam: pick(g.foam), xi: pick(g.xi), d, dirX, dirY, shape, z: LIFT * 0.5 * H * shape };
+  // z: how far it lifts what's under it up the screen in the 3/4 view, half the drawn height (the
+  // whole of it made the seabed, and the fish, swim with each swell); surf.glsl: Surf.z too.
+  return { th, H, run: pick(g.since), foam: pick(g.foam), xi: pick(g.xi), d, dirX, dirY, shape, z: LIFT * 0.25 * H * shape };
 }
 
 // Debug (newtab.html?scene=beach&flow): the seabed in bands of depth (a line every metre; sand on the

@@ -46,6 +46,7 @@ class Fish {
   tuned = 0; // the speed its tail's `period` is tuned for (0: its own top speed); see beat()
   turn = 0; // the tightest circle it can swim, in body lengths across (half that fleeing); 0: any
   neck = 1; // segments before this are its rigid head (swimWave())
+  headSwing = 0; // px its snout yaws either side with each stroke (swimWave())
   // How quickly its turning and its speed come round to what it wants (0-1, a bigger fish's slower):
   // it leans into a turn and out of it, and gathers and loses speed, rather than snapping to them.
   agility = 0.5;
@@ -322,6 +323,8 @@ class Fish {
       const side = ortho(i ? sub(s[i - 1], s[i]) : sub(s[0], s[1]));
       return add(p, mul(side, this.amplitude * Math.max(this.effort, 0.65) * (0.06 + 0.94 * u * u) * Math.sin(beat - 5.6 * u)));
     });
+    // Its head yaws a little with each stroke, smoothly (the path it follows doesn't).
+    if (this.headSwing) this.shape[0] = add(this.shape[0], mul(ortho(sub(s[0], s[1])), this.headSwing * Math.max(this.effort, 0.65) * Math.sin(beat)));
     // The head is one rigid piece, from the neck to the tip of the snout: no bend within it.
     const neck = this.shape[this.neck];
     const snout = sub(this.shape[0], neck);
@@ -410,6 +413,7 @@ class Predator extends Fish {
     this.body = PREDATOR_BODY;
     this.turn = 1;
     this.neck = 3;
+    this.headSwing = this.size; // 5-10 px, with how hard it swims
     this.agility = 0.12;
     this.sizeMult = 1.5;
     this.eyesight = 200;
