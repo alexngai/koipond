@@ -2,6 +2,7 @@
 // white water), and now and then gulls flying over, with their shadows (`sky`, over everything).
 // Flat, like the rest: each part one colour, the shadows hard.
 import { groundAt, WORLD_H, type SurfGrid } from './surf';
+import { stage } from './stage';
 
 const TAU = Math.PI * 2;
 const NIGHT = [0.5, 0.6, 0.68]; // each colour by night (beach.ts: NIGHT)
@@ -69,9 +70,9 @@ export function shore(low: HTMLCanvasElement, sky: HTMLCanvasElement) {
   };
 
   const resize = () => {
-    const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
-    w = window.innerWidth;
-    h = window.innerHeight;
+    const dpr = stage.dpr(1.5);
+    w = stage.w;
+    h = stage.h;
     u = h / 800;
     for (const [c, x] of [
       [low, ltx],

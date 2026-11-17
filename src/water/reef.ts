@@ -7,6 +7,7 @@
 // CSS px, y up from the window's bottom edge, as in the shader.
 
 import { WORLD_H, type Bed, type Swell } from './surf';
+import { stage } from './stage';
 
 type Plate = { x: number; y: number; lift: number; path: Path2D; color: string }; // lift: px above the sand
 
@@ -64,8 +65,8 @@ function cascade(cx: number, cy: number, R: number): Plate[] {
 // are and how far they reach, px), for the reef's fish to live about (fish.ts).
 export type Colony = { x: number; y: number; r: number };
 export function placeReef(cell: number): Plate[] & { colonies: Colony[] } {
-  const W = Math.max(screen.width, window.innerWidth);
-  const H = Math.max(screen.height, window.innerHeight);
+  const W = Math.max(stage.sw, stage.w);
+  const H = Math.max(stage.sh, stage.h);
   const spots: [number, number, number][] = [];
   const place = (R: number) => {
     let [x, y] = [rand(0, W), rand(0, H)];
@@ -133,7 +134,7 @@ export function placeReefSwell(dir: [number, number]): Swell {
 // drawReefHeight()'s pixels (an area w x h px, the window's h px tall at its bottom).
 const CORAL = 0.18;
 export function reefBed(heights: Uint8ClampedArray, w: number, h: number): Bed {
-  const win = window.innerHeight;
+  const win = stage.h;
   const px = win / WORLD_H; // px per m
   return (f, u, v) => {
     const r = f.shore - v; // m out from the water's edge
