@@ -422,7 +422,7 @@ class Salmon extends Fish {
     this.angMomentum = 0.06;
     // An unhurried tail beat (~1.2 s for the smallest), slower the bigger the fish: up to half as
     // slow again for the biggest.
-    this.period = (50 * 6.5 * 0.7 * PACE * grown ** 1.5) / 1.2;
+    this.period = (50 * 6.5 * 0.7 * PACE * grown ** 1.5) / 1.2 / 1.5; // its tail half again as quick
     this.amplitude = 1.2 * this.size; // how far the tail swings either side
     this.eyesight = 160;
     this.personalSpace = 45;
