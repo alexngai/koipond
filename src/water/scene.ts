@@ -260,10 +260,11 @@ export function startWater(start: { scene: Scene; time: Time; root: HTMLElement;
     // Let the fish in the beach scene keep to the sea: how deep the water is at a point (CSS px).
     water.depth = (x, y) => groundAt(flecks.grid, (x * worldH()) / stage.h, (y * worldH()) / stage.h).d;
     // ... and be seen through the waves as the seabed is (beach.glsl: shade()): lifted up the screen
-    // by the height of the water over them, so they shift as each swell passes (CSS px).
+    // by the height of the water over them, so they shift as each swell passes; half as far as the
+    // seabed (they swim well above it, and the whole of it had them lurching) (CSS px).
     water.lift = (x, y) => {
       const k = worldH() / stage.h; // m per px
-      return (-TILT * surfAt(flecks.grid, SURF, x * k, y * k, performance.now() / 1000).z) / k;
+      return (-0.5 * TILT * surfAt(flecks.grid, SURF, x * k, y * k, performance.now() / 1000).z) / k;
     };
     let drawn = performance.now();
     const draw = (now: number, ease = 0.15) => {
