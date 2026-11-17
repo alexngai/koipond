@@ -364,7 +364,7 @@ class Predator extends Fish {
     this.color = `rgb(${r},${g},${b})`;
     this.finColor = `rgb(${r - 10},${g - 10},${b - 10})`;
     this.angMomentum = 0.047; // turn radius ~ speed / angMomentum: 1.5x wider than 0.07, so fish out-turn it
-    this.period = 50 * this.size * 0.85 * PACE; // tail beats at the original rate, unhurried by PACE
+    this.period = (50 * this.size * 0.85 * PACE) / 1.5; // tail beats half again the original rate (it looked to drift)
     this.amplitude = 3 * this.size * 1.2;
     this.body = PREDATOR_BODY;
     this.sizeMult = 1.5;
