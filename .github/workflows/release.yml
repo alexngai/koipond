@@ -1,0 +1,42 @@
+# The package (koipond-sim) to npm, when a GitHub release is published for a tag vX.Y.Z matching
+# package.json's version (or by hand, from the Actions tab, for package.json's version as it is).
+# npm trusts this workflow (a trusted publisher: alexngai/koipond, release.yml), so there's no token:
+# it signs in with GitHub's OIDC, and the package gets provenance. See the README: Releasing.
+name: Release to npm
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write # npm's trusted publishing
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+      - name: An npm that can publish as a trusted publisher (11.5.1 on)
+        run: npm install -g npm@^11.5.1
+      - run: npm ci # builds the package too (prepare: build:lib)
+      - run: npm test
+      - run: npm run build # type-checks it all, and builds the extension
+      - name: The release's tag is package.json's version
+        if: github.event_name == 'release'
+        run: |
+          version="v$(node -p "require('./package.json').version")"
+          if [ "$version" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::The release is tagged $GITHUB_REF_NAME, but package.json's version is $version"
+            exit 1
+          fi
+      - name: Publish (a pre-release, 1.2.0-beta.1 say, as next, not latest)
+        run: |
+          version="$(node -p "require('./package.json').version")"
+          case "$version" in *-*) tag=next ;; *) tag=latest ;; esac
+          npm publish --tag "$tag"
