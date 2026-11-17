@@ -358,7 +358,7 @@ class Predator extends Fish {
   constructor(x: number, y: number) {
     super(x, y);
     this.type = 'predator';
-    this.speed = 2;
+    this.speed = 2 * 0.8; // unhurried: as fast as the school it hunts
     this.size = ~~rand(7, 9);
     const [r, g, b] = [~~rand(130, 170), ~~rand(160, 200), ~~rand(200, 225)];
     this.color = `rgb(${r},${g},${b})`;
