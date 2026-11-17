@@ -44,15 +44,15 @@ deployed to GitHub Pages on each push to `main` (`.github/workflows/pages.yml`).
 
 ## As a package
 
-The water and its fish are also an npm package, `koipond`, for putting a pond behind a page of your
+The water and its fish are also an npm package, `koipond-sim`, for putting a pond behind a page of your
 own (the [About page of alexngai.com](https://alexngai.com/about/) is one):
 
 ```sh
-npm install koipond
+npm install koipond-sim
 ```
 
 ```ts
-import { createPond, SCENES } from 'koipond';
+import { createPond, SCENES } from 'koipond-sim';
 
 const pond = createPond({ scene: 'reef', time: 'night' }); // null where there's no WebGL
 pond?.setScene('beach'); // crossfades to it
