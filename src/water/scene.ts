@@ -7,12 +7,12 @@ import POND from './pond.glsl?raw';
 import BEACH from './beach.glsl?raw';
 import SURF_GLSL from './surf.glsl?raw';
 import GLINTS from './glints.glsl?raw';
-import { CURRENT, flow, water, placeStones, placePools, bubbles } from './stream';
+import { CURRENT, USUAL, flow, water, placeStones, placePools, bubbles } from './stream';
 import { placeReef, drawReef, drawReefHeight, placeReefSwell, reefBed } from './reef';
 import { lilies } from './pond';
 import { spray } from './beach';
 import { shore } from './shore';
-import { placeSurf, packSurf, buildSurf, groundAt, surfAt, TILT, WORLD_H, type SurfGrid, type Swell } from './surf';
+import { placeSurf, packSurf, buildSurf, groundAt, surfAt, worldH, TILT, type SurfGrid, type Swell } from './surf';
 import { quality } from './quality';
 import { stage } from './stage';
 
@@ -186,6 +186,7 @@ export function startWater(start: { scene: Scene; time: Time; root: HTMLElement;
     const current = water.current;
     current.downstream = { x: DIR[0], y: -DIR[1] };
     current.speed = CURRENT * CELL;
+    current.brisk = CURRENT / USUAL;
     current.at = (x, y) => {
       const [vx, vy] = flow(STONES, POOLS, DIR, x / CELL, (stage.h - y) / CELL, performance.now() / 1000);
       return [vx * CELL * current.strength, -vy * CELL * current.strength];
@@ -193,7 +194,7 @@ export function startWater(start: { scene: Scene; time: Time; root: HTMLElement;
     // Which surf grid a program reads (surf.glsl), and on which texture unit.
     const surfUniforms = (gl: WebGLRenderingContext, u: Record<string, WebGLUniformLocation | null>, g: SurfGrid, s: Swell, unit: number) => {
       gl.uniform1i(u.u_surfTex, unit);
-      gl.uniform4f(u.u_surfGrid, g.x0, g.y0, g.step, WORLD_H);
+      gl.uniform4f(u.u_surfGrid, g.x0, g.y0, g.step, worldH());
       gl.uniform4f(u.u_surfSize, g.nx, g.ny, s.period, s.seed);
       gl.uniform4f(u.u_surfFrame, g.frame.cx, g.frame.cy, g.frame.n[0], g.frame.n[1]);
     };
@@ -257,12 +258,13 @@ export function startWater(start: { scene: Scene; time: Time; root: HTMLElement;
     });
     let { surface, pads, flecks, reefFlecks, life } = extras();
     // Let the fish in the beach scene keep to the sea: how deep the water is at a point (CSS px).
-    water.depth = (x, y) => groundAt(flecks.grid, (x * WORLD_H) / stage.h, (y * WORLD_H) / stage.h).d;
+    water.depth = (x, y) => groundAt(flecks.grid, (x * worldH()) / stage.h, (y * worldH()) / stage.h).d;
     // ... and be seen through the waves as the seabed is (beach.glsl: shade()): lifted up the screen
-    // by the height of the water over them, so they shift as each swell passes (CSS px).
+    // by the height of the water over them, so they shift as each swell passes; half as far as the
+    // seabed (they swim well above it, and the whole of it had them lurching) (CSS px).
     water.lift = (x, y) => {
-      const k = WORLD_H / stage.h; // m per px
-      return (-TILT * surfAt(flecks.grid, SURF, x * k, y * k, performance.now() / 1000).z) / k;
+      const k = worldH() / stage.h; // m per px
+      return (-0.5 * TILT * surfAt(flecks.grid, SURF, x * k, y * k, performance.now() / 1000).z) / k;
     };
     let drawn = performance.now();
     const draw = (now: number, ease = 0.15) => {

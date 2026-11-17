@@ -6,7 +6,7 @@
 // paler the higher it is, and a hard shadow down and to the right that falls on the tiers below.
 // CSS px, y up from the window's bottom edge, as in the shader.
 
-import { WORLD_H, type Bed, type Swell } from './surf';
+import { worldH, type Bed, type Swell } from './surf';
 import { stage } from './stage';
 
 type Plate = { x: number; y: number; lift: number; path: Path2D; color: string }; // lift: px above the sand
@@ -135,7 +135,7 @@ export function placeReefSwell(dir: [number, number]): Swell {
 const CORAL = 0.18;
 export function reefBed(heights: Uint8ClampedArray, w: number, h: number): Bed {
   const win = stage.h;
-  const px = win / WORLD_H; // px per m
+  const px = win / worldH(); // px per m
   return (f, u, v) => {
     const r = f.shore - v; // m out from the water's edge
     if (r <= 0) return [r * 0.08, 0, r];

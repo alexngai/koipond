@@ -1,7 +1,7 @@
 // Beach (and reef): particles in the water, riding the swell (the water itself is beach.glsl, or
 // ocean.glsl), on their own canvases. Both read the surf worked out from the seabed (surf.ts), which
 // for the beach this builds, once per layout and size, for scene.ts to hand the shader too.
-import { buildSurf, drawSurfDebug, seabed, surfAt, LIFT, LIP, TILT, WORLD_H, type Surf, type SurfGrid, type Swell } from './surf';
+import { beachUnit, buildSurf, drawSurfDebug, seabed, surfAt, worldH, LIFT, LIP, TILT, type Surf, type SurfGrid, type Swell } from './surf';
 import { blobs } from './goo';
 import { stage } from './stage';
 
@@ -51,7 +51,7 @@ export function spray(canvas: HTMLCanvasElement, goo: HTMLCanvasElement, fused: 
   const foam = blobs(fused);
   let w = 0;
   let h = 0;
-  let u = 1; // the screen's height over 800 px
+  let u = 1; // the beach's scale (surf.ts: beachUnit())
   // Spots at rest, in the beach's frame (m): along the shore, towards it; a size; where the deeper
   // layers sit about it (m), so they don't stack exactly under the surface's; a tint; and a seed.
   let spots: { u: number; v: number; r: number; jx: number; jy: number; tint: number; seed: number }[] = [];
@@ -70,7 +70,7 @@ export function spray(canvas: HTMLCanvasElement, goo: HTMLCanvasElement, fused: 
     if (grid && w === stage.w && h === stage.h) return;
     w = stage.w;
     h = stage.h;
-    u = h / 800;
+    u = beachUnit();
     for (const [c, x] of [
       [canvas, ctx],
       [goo, gtx],
@@ -90,7 +90,7 @@ export function spray(canvas: HTMLCanvasElement, goo: HTMLCanvasElement, fused: 
   // Their spots over the screen, for the grid g.
   const place = (g: SurfGrid) => {
     const { umin, umax, vmin, vmax } = g.frame;
-    const gap = (GAP * u * WORLD_H) / h; // m
+    const gap = (GAP * u * worldH()) / h; // m
     spots = [];
     for (let v = vmin - 6; v < vmax + 6; v += gap)
       for (let s = umin - 6; s < umax + 6; s += gap)
@@ -128,7 +128,7 @@ export function spray(canvas: HTMLCanvasElement, goo: HTMLCanvasElement, fused: 
       }
       if (!grid) return;
       if (debug && typeof source !== 'function') return drawSurfDebug(ctx, grid, source, t, h, built);
-      const px = h / WORLD_H; // px per m
+      const px = h / worldH(); // px per m
       const { cx, cy, n, t: along, vmin, vmax } = grid.frame;
       const span = vmax - vmin + 12;
       // A path for each layer, tint and step of opacity; and for the white water's bubbles, the

@@ -6,9 +6,12 @@
 // them, for a canvas drawn at most `cap` canvas px per CSS px.
 // The zoom goes by the size of the screen, not the window: a phone's address bar coming and going, or
 // a desktop window made small, doesn't change it.
-// About 0.65 on a phone (as if it were half again as wide), 1 from a tablet up.
+// About 0.65 on a phone (as if it were half again as wide), 1 from a tablet up. By the screen, or the
+// window where it's bigger: a browser that reports a made-up screen (headless, some privacy modes)
+// mustn't shrink a desktop's scene.
 let z = 0;
-const zoom = () => z || (z = Math.min(1, Math.max(0.5, Math.sqrt(screen.width * screen.height) / 900)));
+const zoom = () =>
+  z || (z = Math.min(1, Math.max(0.5, Math.sqrt(Math.max(screen.width, window.innerWidth) * Math.max(screen.height, window.innerHeight)) / 900)));
 
 export const stage = {
   get zoom() {

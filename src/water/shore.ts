@@ -1,7 +1,7 @@
 // Beach: life on and over the beach, on two canvases of its own: crabs on the sand (`low`, under the
 // white water), and now and then gulls flying over, with their shadows (`sky`, over everything).
 // Flat, like the rest: each part one colour, the shadows hard.
-import { groundAt, WORLD_H, type SurfGrid } from './surf';
+import { beachUnit, groundAt, worldH, type SurfGrid } from './surf';
 import { stage } from './stage';
 
 const TAU = Math.PI * 2;
@@ -28,7 +28,7 @@ export function shore(low: HTMLCanvasElement, sky: HTMLCanvasElement) {
   const stx = sky.getContext('2d')!;
   let w = 0;
   let h = 0;
-  let u = 1; // the screen's height over 800 px
+  let u = 1; // the beach's scale (surf.ts: beachUnit())
   let grid: SurfGrid | null = null;
   let crabs: Crab[] = [];
   let gulls: Gull[] = [];
@@ -38,7 +38,7 @@ export function shore(low: HTMLCanvasElement, sky: HTMLCanvasElement) {
   // Sand a crab can walk on: up the beach clear of the swash, off the rocks, on the screen.
   const sand = (x: number, y: number) => {
     if (!grid || x < 12 || x > w - 12 || y < 60 || y > h - 12) return false;
-    const g = groundAt(grid, (x * WORLD_H) / h, (y * WORLD_H) / h);
+    const g = groundAt(grid, (x * worldH()) / h, (y * worldH()) / h);
     return g.d < -1.5 && g.reef < 0.2;
   };
   const place = () => {
@@ -73,7 +73,7 @@ export function shore(low: HTMLCanvasElement, sky: HTMLCanvasElement) {
     const dpr = stage.dpr(1.5);
     w = stage.w;
     h = stage.h;
-    u = h / 800;
+    u = beachUnit();
     for (const [c, x] of [
       [low, ltx],
       [sky, stx],
