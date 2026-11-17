@@ -1,7 +1,7 @@
 // Beach (and reef): particles in the water, riding the swell (the water itself is beach.glsl, or
 // ocean.glsl), on their own canvases. Both read the surf worked out from the seabed (surf.ts), which
 // for the beach this builds, once per layout and size, for scene.ts to hand the shader too.
-import { buildSurf, drawSurfDebug, seabed, surfAt, worldH, LIFT, LIP, TILT, type Surf, type SurfGrid, type Swell } from './surf';
+import { beachUnit, buildSurf, drawSurfDebug, seabed, surfAt, worldH, LIFT, LIP, TILT, type Surf, type SurfGrid, type Swell } from './surf';
 import { blobs } from './goo';
 import { stage } from './stage';
 
@@ -51,7 +51,7 @@ export function spray(canvas: HTMLCanvasElement, goo: HTMLCanvasElement, fused: 
   const foam = blobs(fused);
   let w = 0;
   let h = 0;
-  let u = 1; // the screen's height over 800 px
+  let u = 1; // the beach's scale (surf.ts: beachUnit())
   // Spots at rest, in the beach's frame (m): along the shore, towards it; a size; where the deeper
   // layers sit about it (m), so they don't stack exactly under the surface's; a tint; and a seed.
   let spots: { u: number; v: number; r: number; jx: number; jy: number; tint: number; seed: number }[] = [];
@@ -70,7 +70,7 @@ export function spray(canvas: HTMLCanvasElement, goo: HTMLCanvasElement, fused: 
     if (grid && w === stage.w && h === stage.h) return;
     w = stage.w;
     h = stage.h;
-    u = (h * stage.zoom) / 800; // (the window's height, drawn smaller on a phone: see worldH())
+    u = beachUnit();
     for (const [c, x] of [
       [canvas, ctx],
       [goo, gtx],

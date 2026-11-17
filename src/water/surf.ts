@@ -29,10 +29,14 @@
 import { stage } from './stage';
 const TAU = Math.PI * 2;
 const G = 9.81;
-export const WORLD_H = 260; // m of sea from the top of the screen to the bottom (on a laptop's)
-// ... and on this one: more on a phone, where the scene is drawn smaller (stage.ts), so its waves,
-// particles and rocks shrink with the fish and the rest.
-export const worldH = () => WORLD_H / stage.zoom;
+export const WORLD_H = 260; // m of sea from the top of the screen to the bottom, on a laptop's (900 CSS px tall)
+// ... and on this one: more on a taller screen and less on a shorter one, but only by the square root
+// of how much (a big monitor's waves a little bigger, not half again as big, its fish still in
+// proportion to them); and more on a phone, where the scene is drawn smaller (stage.ts).
+export const worldH = () => (WORLD_H / stage.zoom) * Math.sqrt(window.innerHeight / 900);
+// The beach's things (particles, rocks, crab, gulls) at that scale: px for each they'd be on a screen
+// 800 px tall, if it fitted the beach to its height.
+export const beachUnit = () => (stage.h / worldH()) * (WORLD_H / 800);
 const STEP = 4; // m between grid points
 const GAMMA = 0.78; // a wave breaks once it is taller than this much of the depth
 export const SIZES = [0.7, 1, 1.35]; // the wave sizes it is worked out for, times the swell's height

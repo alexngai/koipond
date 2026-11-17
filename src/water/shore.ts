@@ -1,7 +1,7 @@
 // Beach: life on and over the beach, on two canvases of its own: crabs on the sand (`low`, under the
 // white water), and now and then gulls flying over, with their shadows (`sky`, over everything).
 // Flat, like the rest: each part one colour, the shadows hard.
-import { groundAt, worldH, type SurfGrid } from './surf';
+import { beachUnit, groundAt, worldH, type SurfGrid } from './surf';
 import { stage } from './stage';
 
 const TAU = Math.PI * 2;
@@ -28,7 +28,7 @@ export function shore(low: HTMLCanvasElement, sky: HTMLCanvasElement) {
   const stx = sky.getContext('2d')!;
   let w = 0;
   let h = 0;
-  let u = 1; // the screen's height over 800 px
+  let u = 1; // the beach's scale (surf.ts: beachUnit())
   let grid: SurfGrid | null = null;
   let crabs: Crab[] = [];
   let gulls: Gull[] = [];
@@ -73,7 +73,7 @@ export function shore(low: HTMLCanvasElement, sky: HTMLCanvasElement) {
     const dpr = stage.dpr(1.5);
     w = stage.w;
     h = stage.h;
-    u = (h * stage.zoom) / 800; // (the window's height, drawn smaller on a phone: see worldH())
+    u = beachUnit();
     for (const [c, x] of [
       [low, ltx],
       [sky, stx],
