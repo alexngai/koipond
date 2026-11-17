@@ -147,3 +147,7 @@ time a new tab opens, Chrome asks whether to keep the change: keep it.
 - `store/`: what the Chrome Web Store needs: the listing and privacy answers (`listing.md`), a
   privacy policy, screenshots, the promo tile, the icon's source (`icon.svg`) and `render.py`, which
   renders them.
+
+## License
+
+MIT: see [LICENSE](LICENSE).

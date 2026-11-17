@@ -14,6 +14,7 @@
     "animation",
     "canvas"
   ],
+  "license": "MIT",
   "homepage": "https://github.com/alexngai/koipond#readme",
   "repository": {
     "type": "git",
