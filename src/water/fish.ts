@@ -44,6 +44,7 @@ class Fish {
   heading: V;
   effort = 1; // how fast it's swimming through the water, against its top speed
   tuned = 0; // the speed its tail's `period` is tuned for (0: its own top speed); see beat()
+  turn = 0; // the tightest circle it can swim, in body lengths across (half that alarmed); 0: any
   sway = 0; // the swimming wave's bend just past the tail, -1 to 1 (times effort)
   clock = 0; // its own swimming time, ms: see beat()
   lastNow = 0;
@@ -242,7 +243,18 @@ class Fish {
     // upstream.
     const grip = Math.min(1, mag(swim) / (0.3 * this.speed * PACE));
     const face = add(mul(norm(swim), grip), mul(water.current.downstream, -(1 - grip) * water.current.strength));
-    if (mag(face) > 1e-3) this.heading = norm(lerp(this.heading, norm(face), this.angMomentum * PACE * Math.max(grip, 0.3)));
+    if (mag(face) > 1e-3) {
+      let to = norm(lerp(this.heading, norm(face), this.angMomentum * PACE * Math.max(grip, 0.3)));
+      // A long fish swims round in a circle no tighter than `turn` body lengths, rather than folding
+      // itself round on the spot; barely moving, it can still pivot, slowly.
+      if (this.turn) {
+        const radius = (this.alarmed ? 0.5 : 1) * this.turn * (this.body.length - 1) * this.size;
+        const most = Math.max(mag(swim), 0.3 * this.speed * PACE) / radius; // radians this step
+        const a = Math.atan2(this.heading.x * to.y - this.heading.y * to.x, dot(this.heading, to));
+        if (Math.abs(a) > most) to = rotate(this.heading, Math.sign(a) * most);
+      }
+      this.heading = to;
+    }
     const m = mag(swim);
     this.effort = m / (this.speed * PACE);
     const from = { x: this.x, y: this.y };
@@ -363,6 +375,7 @@ class Predator extends Fish {
     this.period = (50 * this.size * 0.85 * PACE) / 1.5; // half again the original beat (it looked to drift)
     this.amplitude = 3 * this.size * 1.2;
     this.body = PREDATOR_BODY;
+    this.turn = 1;
     this.sizeMult = 1.5;
     this.eyesight = 200;
     this.flockDistance = 2000;
@@ -404,6 +417,7 @@ class Salmon extends Fish {
     const grown = 1 + 0.3 * Math.random(); // up to 30% bigger than the smallest
     this.size = 6.5 * grown; // about 90-120 px long
     this.body = SALMON_BODY;
+    this.turn = 1;
     // The same reds and greens on every fish, each a touch brighter or darker (+-8%) and more or
     // less vivid (-15% to +10%).
     const light = rand(0.92, 1.08);
@@ -543,6 +557,7 @@ class Koi extends Salmon {
     const grown = 0.5 + Math.random(); // half to one and a half times a typical koi
     this.size = 7 * grown; // about 50-150 px long, with the tail
     this.body = KOI_BODY;
+    this.turn = 0; // its own steering (settle()) already keeps to its circle
     this.neck = 3;
     this.speed = 1.2;
     const { base, fin, patches } = koiPattern();
