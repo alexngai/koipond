@@ -3,6 +3,7 @@
 // for the beach this builds, once per layout and size, for scene.ts to hand the shader too.
 import { buildSurf, drawSurfDebug, seabed, surfAt, LIFT, LIP, TILT, WORLD_H, type Surf, type SurfGrid, type Swell } from './surf';
 import { blobs } from './goo';
+import { stage } from './stage';
 
 const TAU = Math.PI * 2;
 const GAP = 13; // px between particles' spots at rest (on a screen 800 px tall)
@@ -65,10 +66,10 @@ export function spray(canvas: HTMLCanvasElement, goo: HTMLCanvasElement, fused: 
     return rocks.data[(Math.floor(h - y) * rocks.w + Math.floor(x)) * 4 + 3] > 127;
   };
   const resize = () => {
-    const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
-    if (grid && w === window.innerWidth && h === window.innerHeight) return;
-    w = window.innerWidth;
-    h = window.innerHeight;
+    const dpr = stage.dpr(1.5);
+    if (grid && w === stage.w && h === stage.h) return;
+    w = stage.w;
+    h = stage.h;
     u = h / 800;
     for (const [c, x] of [
       [canvas, ctx],

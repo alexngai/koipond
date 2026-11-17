@@ -14,6 +14,7 @@ import { spray } from './beach';
 import { shore } from './shore';
 import { placeSurf, packSurf, buildSurf, groundAt, surfAt, TILT, WORLD_H, type SurfGrid, type Swell } from './surf';
 import { quality } from './quality';
+import { stage } from './stage';
 
 // The reef and the beach both ride the surf model (surf.ts, surf.glsl), each on its own grid.
 const SCENES = { ocean: SURF_GLSL + OCEAN, stream: STREAM, pond: POND, beach: SURF_GLSL + BEACH };
@@ -178,7 +179,7 @@ export function startWater(start: { scene: Scene; time: Time }) {
     water.downstream = { x: DIR[0], y: -DIR[1] };
     water.speed = CURRENT * CELL;
     water.at = (x, y) => {
-      const [vx, vy] = flow(STONES, POOLS, DIR, x / CELL, (window.innerHeight - y) / CELL, performance.now() / 1000);
+      const [vx, vy] = flow(STONES, POOLS, DIR, x / CELL, (stage.h - y) / CELL, performance.now() / 1000);
       return [vx * CELL * weights.stream, -vy * CELL * weights.stream];
     };
     // Which surf grid a program reads (surf.glsl), and on which texture unit.
@@ -248,11 +249,11 @@ export function startWater(start: { scene: Scene; time: Time }) {
     });
     let { surface, pads, flecks, reefFlecks, life } = extras();
     // Let the fish in the beach scene keep to the sea: how deep the water is at a point (CSS px).
-    water.depth = (x, y) => groundAt(flecks.grid, (x * WORLD_H) / window.innerHeight, (y * WORLD_H) / window.innerHeight).d;
+    water.depth = (x, y) => groundAt(flecks.grid, (x * WORLD_H) / stage.h, (y * WORLD_H) / stage.h).d;
     // ... and be seen through the waves as the seabed is (beach.glsl: shade()): lifted up the screen
     // by the height of the water over them, so they shift as each swell passes (CSS px).
     water.lift = (x, y) => {
-      const k = WORLD_H / window.innerHeight; // m per px
+      const k = WORLD_H / stage.h; // m per px
       return (-TILT * surfAt(flecks.grid, SURF, x * k, y * k, performance.now() / 1000).z) / k;
     };
     let drawn = performance.now();
@@ -297,12 +298,12 @@ export function startWater(start: { scene: Scene; time: Time }) {
       // The glints on the fish.
       if (glints && quality.now.glints) {
         const { canvas, gl, prog } = glints;
-        const [cw, ch] = [Math.ceil(window.innerWidth / 2), Math.ceil(window.innerHeight / 2)];
+        const [cw, ch] = [Math.ceil((stage.w * stage.zoom) / 2), Math.ceil((stage.h * stage.zoom) / 2)];
         if (canvas.width !== cw || canvas.height !== ch) [canvas.width, canvas.height] = [cw, ch];
         gl.viewport(0, 0, cw, ch);
         gl.clear(gl.COLOR_BUFFER_BIT);
         gl.useProgram(prog.prog);
-        common(gl, prog.u, now / 1000, { weight: 1, layer: 0, cell: CELL / 2, res: [cw, ch] });
+        common(gl, prog.u, now / 1000, { weight: 1, layer: 0, cell: (CELL * stage.zoom) / 2, res: [cw, ch] });
         gl.uniform4f(prog.u.u_scenes, weights.ocean, weights.stream, weights.beach, weights.pond);
         gl.drawArrays(gl.TRIANGLES, 0, 3);
         if ('transferToImageBitmap' in canvas) {
@@ -352,7 +353,7 @@ export function startWater(start: { scene: Scene; time: Time }) {
       gl.bindFramebuffer(gl.FRAMEBUFFER, rocks.fb);
       gl.viewport(0, 0, area[0], area[1]);
       gl.disable(gl.BLEND);
-      common(gl, rockPass.u, 0, { weight: 1, layer: L.layer, cell: CELL, res: [window.innerWidth, window.innerHeight] });
+      common(gl, rockPass.u, 0, { weight: 1, layer: L.layer, cell: CELL, res: [stage.w, stage.h] });
       gl.drawArrays(gl.TRIANGLES, 0, 3);
       gl.enable(gl.BLEND);
       gl.bindFramebuffer(gl.FRAMEBUFFER, null);
@@ -360,9 +361,9 @@ export function startWater(start: { scene: Scene; time: Time }) {
     // The floor's and the surface's canvases, at the resolution quality.ts allows.
     const fit = () => {
       for (const L of layers) {
-        L.scale = L.layer ? Math.min(window.devicePixelRatio || 1, quality.now.surface) : quality.now.floor;
-        L.canvas.width = window.innerWidth * L.scale;
-        L.canvas.height = window.innerHeight * L.scale;
+        L.scale = L.layer ? stage.dpr(quality.now.surface) : quality.now.floor * stage.zoom;
+        L.canvas.width = stage.w * L.scale;
+        L.canvas.height = stage.h * L.scale;
       }
     };
     quality.onChange(() => {
@@ -380,16 +381,16 @@ export function startWater(start: { scene: Scene; time: Time }) {
         upload(uploaded, 3, (L) => L.surf, [...layers, ...(glints ? [glints] : [])]);
       }
       // The reef's coral colonies, for its fish to live about (CSS px, y down).
-      water.colonies = REEF.colonies.map((c) => ({ x: c.x, y: window.innerHeight - c.y, r: c.r }));
+      water.colonies = REEF.colonies.map((c) => ({ x: c.x, y: stage.h - c.y, r: c.r }));
       water.rocks = Array.from({ length: STONES.count }, (_, i) => ({
         x: STONES.data[4 * i] * CELL,
-        y: window.innerHeight - STONES.data[4 * i + 1] * CELL,
+        y: stage.h - STONES.data[4 * i + 1] * CELL,
         r: STONES.data[4 * i + 2] * CELL,
       }));
       fit();
       // The maps only need making again if the window has outgrown them (they start screen-sized):
       // the bed is drawn, and the foam run on for 8 seconds so the stream opens foamy.
-      const need = [Math.max(screen.width, window.innerWidth), Math.max(screen.height, window.innerHeight)].map((v) => Math.ceil(v / QUARTER) * QUARTER);
+      const need = [Math.max(stage.sw, stage.w), Math.max(stage.sh, stage.h)].map((v) => Math.ceil(v / QUARTER) * QUARTER);
       if (need[0] > area[0] || need[1] > area[1]) {
         area = [need[0], need[1]];
         for (const layer of layers) {
@@ -434,11 +435,11 @@ export function startWater(start: { scene: Scene; time: Time }) {
         }
       }
       // The reef's surf, worked out again for a new layout or window size.
-      const key = `${window.innerWidth}x${window.innerHeight}`;
+      const key = `${stage.w}x${stage.h}`;
       if (reefHeights && (reefFor !== key || !reefGrid)) {
         reefFor = key;
         const { data, w, h } = reefHeights;
-        reefGrid = buildSurf(REEF_SWELL, window.innerWidth, window.innerHeight, reefBed(data, w, h));
+        reefGrid = buildSurf(REEF_SWELL, stage.w, stage.h, reefBed(data, w, h));
         upload(reefGrid, 7, (L) => L.reefSurf, layers);
       }
       if (rocked !== flecks.grid) {
@@ -447,7 +448,7 @@ export function startWater(start: { scene: Scene; time: Time }) {
         // ... and where they hide the flecks behind them (the surface's map, read back once).
         const L = layers.find((l) => l.layer);
         if (L) {
-          const [w, h] = [Math.min(window.innerWidth, area[0]), Math.min(window.innerHeight, area[1])];
+          const [w, h] = [Math.min(stage.w, area[0]), Math.min(stage.h, area[1])];
           const data = new Uint8Array(w * h * 4);
           L.gl.bindFramebuffer(L.gl.FRAMEBUFFER, L.rocks.fb);
           L.gl.readPixels(0, 0, w, h, L.gl.RGBA, L.gl.UNSIGNED_BYTE, data);

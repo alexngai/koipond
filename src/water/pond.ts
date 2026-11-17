@@ -5,6 +5,7 @@
 // shadow on the bed far below. It rains on the pond, lightly and steadily: each drop is seen falling
 // for a moment, then sends a ring out across the water (under the pads), shadowed on the bed too.
 // CSS px, y down.
+import { stage } from './stage';
 
 type Lily = { x: number; y: number; r: number; turn: number; phase: number; path: Path2D; hsl: [number, number, number]; flower?: Flower };
 type Drop = { x: number; y: number; at: number; size: number; ripple: boolean }; // at: when it hits the water, s
@@ -60,8 +61,8 @@ function flower(r: number): Flower {
 
 export function lilies(canvas: HTMLCanvasElement, cell: number) {
   const ctx = canvas.getContext('2d')!;
-  const W = Math.max(screen.width, window.innerWidth);
-  const H = Math.max(screen.height, window.innerHeight);
+  const W = Math.max(stage.sw, stage.w);
+  const H = Math.max(stage.sh, stage.h);
   const all: Lily[] = [];
   const add = (x: number, y: number, r: number) => {
     if (!all.every((l) => Math.hypot(l.x - x, l.y - y) > 0.85 * (l.r + r))) return;
@@ -90,9 +91,9 @@ export function lilies(canvas: HTMLCanvasElement, cell: number) {
   const colour = ([h, s, l]: [number, number, number], day: number, keep = 0.35) => `hsl(${h} ${s * (0.6 + 0.4 * day)}% ${l * (keep + (1 - keep) * day)}%)`;
   return {
     resize() {
-      dpr = Math.min(window.devicePixelRatio || 1, 2);
-      canvas.width = window.innerWidth * dpr;
-      canvas.height = window.innerHeight * dpr;
+      dpr = stage.dpr(2);
+      canvas.width = stage.w * dpr;
+      canvas.height = stage.h * dpr;
       shown = true;
     },
     // t: seconds; weight: how much the pond is showing (0-1).
@@ -105,7 +106,7 @@ export function lilies(canvas: HTMLCanvasElement, cell: number) {
       canvas.style.visibility = shown ? '' : 'hidden'; // hidden, an idle canvas costs nothing
       if (!shown) return;
       // About one drop a second for every 50,000 CSS px² of window. One landing on a pad makes no ring.
-      const [w, h] = [window.innerWidth, window.innerHeight];
+      const [w, h] = [stage.w, stage.h];
       due += (Math.min(Math.max(t - then, 0), 0.1) * w * h) / 50000;
       then = t;
       for (; due >= 1; due--) {

@@ -6,6 +6,7 @@
 // startWater()).
 import { water } from './stream';
 import { quality } from './quality';
+import { stage } from './stage';
 
 type V = { x: number; y: number };
 const rand = (a: number, b: number) => a + Math.random() * (b - a);
@@ -210,7 +211,7 @@ class Fish {
   // depth where they meet the shore, so that in a corner the way to deeper water points out of
   // it, not along one side into the other.
   deep(x: number, y: number) {
-    const [w, h, round] = [window.innerWidth, window.innerHeight, 150];
+    const [w, h, round] = [stage.w, stage.h, 150];
     const [dx, dy] = [Math.min(x, w - x), Math.min(y, h - y)];
     const edge = (dx < round && dy < round ? round - Math.hypot(round - dx, round - dy) : Math.min(dx, dy)) / 30;
     const d = water.depth!(x, y);
@@ -576,7 +577,7 @@ class Koi extends Salmon {
     const radius = (this.alarmed ? 0.6 : 1.2) * this.body.length * this.size;
     // It heads where they steer it, unless that's out of view within a full turn's width: then it
     // turns back in, as hard as it can.
-    const [w, h, edge] = [window.innerWidth, window.innerHeight, 100];
+    const [w, h, edge] = [stage.w, stage.h, 100];
     const ahead = add(this, this.dir, 2 * radius);
     const back = { x: +(ahead.x < edge) - +(ahead.x > w - edge), y: +(ahead.y < edge) - +(ahead.y > h - edge) };
     const to = back.x || back.y ? back : this.v;
@@ -773,9 +774,9 @@ export function startFish() {
     let w = 0;
     let h = 0;
     const resize = () => {
-      const dpr = Math.min(window.devicePixelRatio || 1, quality.now.fish); // less where frames come slowly (quality.ts)
-      w = window.innerWidth;
-      h = window.innerHeight;
+      const dpr = stage.dpr(quality.now.fish); // less where frames come slowly (quality.ts)
+      w = stage.w;
+      h = stage.h;
       canvas.width = w * dpr;
       canvas.height = h * dpr;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -849,12 +850,15 @@ export function startFish() {
     let generation = water.generation;
 
     let pointer: V | null = null;
-    window.addEventListener('pointermove', (e) => (pointer = { x: e.clientX, y: e.clientY }), { passive: true });
+    window.addEventListener('pointermove', (e) => (pointer = { x: e.clientX / stage.zoom, y: e.clientY / stage.zoom }), { passive: true });
     document.addEventListener('pointerleave', () => (pointer = null));
 
+    // Fish move a fixed step at a time (as in the original): 60 a second, whatever the frame rate.
+    const STEP = 1000 / 60; // ms
     let last = performance.now();
-    const frame = (now: number) => {
-      const dt = Math.min((now - last) / 1000, 0.05); // no jump after the tab was hidden
+    // `steps`: how many to take before drawing them.
+    const frame = (now: number, steps = 1) => {
+      const dt = Math.min((now - last) / 1000, 0.05 * steps) / steps; // s a step; no jump after the tab was hidden
       last = now;
       // The reef fish in the ocean, the salmon in the stream, the koi in the pond: each school only
       // swims (and shows, fading) while its scene does.
@@ -884,10 +888,13 @@ export function startFish() {
         if (weight < 0.003) continue;
         if (school === pond) setLook(day ? 1 : 0.75, day ? 1 : 0.55);
         else setLook(day && school !== run ? 1.8 : 1, 1);
-        for (let i = school.length - 1; i >= 0; i--) {
-          school[i].think(school, i, pointer, dt, now);
-          const [dx, dy] = water.at?.(school[i].x, school[i].y) ?? [0, 0];
-          school[i].move(w, h, now, { x: dx / 60, y: dy / 60 }); // px/s to px per (60 Hz) step
+        for (let k = steps - 1; k >= 0; k--) {
+          const t = now - k * STEP;
+          for (let i = school.length - 1; i >= 0; i--) {
+            school[i].think(school, i, pointer, dt, t);
+            const [dx, dy] = water.at?.(school[i].x, school[i].y) ?? [0, 0];
+            school[i].move(w, h, t, { x: dx / 60, y: dy / 60 }); // px/s to px per (60 Hz) step
+          }
         }
         ctx.globalAlpha = htx.globalAlpha = weight;
         for (let i = school.length - 1; i >= 0; i--) {
@@ -929,17 +936,18 @@ export function startFish() {
       // One still frame: the fish, not swimming.
       for (let i = 0; i < 60; i++) frame(last + i * 16);
     } else {
-      // Fish move a fixed step per frame (as in the original), so cap the frame rate:
-      // on 120 Hz screens they'd otherwise swim twice as fast.
-      const STEP = 1000 / 60;
+      // 60 steps a second: on a 120 Hz screen one every other frame; where frames come slower (an
+      // older phone, a browser saving power) two or more a frame, so they don't slow down with it. (At
+      // most 4: past that, slowing down is better than stalling the page.)
       let lag = 0;
       let prev = performance.now();
       const loop = (now: number) => {
         lag += now - prev;
         prev = now;
         if (lag >= STEP - 2) {
-          lag = Math.min(lag - STEP, STEP); // carry the remainder, so 144 Hz still averages 60
-          frame(now);
+          const steps = Math.min(4, Math.max(1, Math.floor((lag + 2) / STEP)));
+          lag = Math.min(lag - steps * STEP, STEP); // carry the remainder, so 144 Hz still averages 60
+          frame(now, steps);
         }
         requestAnimationFrame(loop);
       };

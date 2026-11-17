@@ -3,6 +3,7 @@
 // the other), and the bubbles riding that current, on the surface and under it, and the leaves
 // floating on it. Positions are in
 // cells (CELL CSS px each), y up from the window's bottom edge, as in the shader.
+import { stage } from './stage';
 
 export const MAX_STONES = 32; // matches stream.glsl
 export const MAX_POOLS = 16; // matches stream.glsl
@@ -16,8 +17,8 @@ export type Stones = { data: Float32Array; count: number; w?: number; h?: number
 export function placeStones(cell: number): Stones {
   const data = new Float32Array(MAX_STONES * 4);
   let count = 0;
-  const w = Math.max(screen.width, window.innerWidth) / cell;
-  const h = Math.max(screen.height, window.innerHeight) / cell;
+  const w = Math.max(stage.sw, stage.w) / cell;
+  const h = Math.max(stage.sh, stage.h) / cell;
   const want = Math.min(MAX_STONES, Math.round((w * h) / 2.5));
   for (let i = 0; i < 1000 && count < want; i++) {
     const r = 0.3 + 0.45 * Math.random() ** 2;
@@ -53,8 +54,8 @@ export const water: { at?: (x: number, y: number) => [number, number]; depth?: (
 // over the whole screen, like the boulders. x, y, radius (260-660 CSS px), amount.
 export function placePools(cell: number): Stones {
   const data = new Float32Array(MAX_POOLS * 4);
-  const w = Math.max(screen.width, window.innerWidth) / cell;
-  const h = Math.max(screen.height, window.innerHeight) / cell;
+  const w = Math.max(stage.sw, stage.w) / cell;
+  const h = Math.max(stage.sh, stage.h) / cell;
   const count = Math.min(MAX_POOLS, Math.round((w * h) / 3));
   for (let i = 0; i < count; i++) data.set([Math.random() * w, Math.random() * h, 1.2 + 1.8 * Math.random(), 1.1 * (Math.random() - 0.5)], 4 * i);
   return { data, count, w, h };
@@ -190,13 +191,13 @@ function curl(stones: Stones, pools: Stones, dir: [number, number], x: number, y
 export function bubbles(canvas: HTMLCanvasElement, below: HTMLCanvasElement, stones: Stones, pools: Stones, dir: [number, number], cell: number) {
   const ctx = canvas.getContext('2d')!;
   const lctx = below.getContext('2d')!;
-  const area = window.innerWidth * window.innerHeight;
+  const area = stage.w * stage.h;
   const top = Math.min(1200, Math.round(area / 3000)); // the first `top` are on the surface
   const n = top + Math.min(800, Math.round(area / 5000));
   const [x, y, z, age, life, size, rate, phase] = Array.from({ length: 8 }, () => new Float32Array(n));
   const spawn = (i: number, t: number, start = 0) => {
-    const w = window.innerWidth / cell;
-    const h = window.innerHeight / cell;
+    const w = stage.w / cell;
+    const h = stage.h / cell;
     // Try spots at random, keeping one with a chance that grows with how much harder than usual
     // the water spins there (about a quarter of a boulder field passes 0.5/s, and 1.1/s is a sure
     // thing); calm water still gets a few (`calm`).
@@ -221,8 +222,8 @@ export function bubbles(canvas: HTMLCanvasElement, below: HTMLCanvasElement, sto
   const leaves = Array.from({ length: Math.max(3, Math.round(area / 60000)) }, () => ({ x: 0, y: 0, turn: 0, spin: 0, size: 0, hue: 0, sat: 0, light: 0, path: new Path2D(), shown: new Path2D(), shadow: [0, 0] }));
   const EDGE = 0.12; // cells: how far off screen a leaf comes in (it leaves a little further off)
   const place = (l: (typeof leaves)[number], anywhere: boolean) => {
-    const w = window.innerWidth / cell;
-    const h = window.innerHeight / cell;
+    const w = stage.w / cell;
+    const h = stage.h / cell;
     l.x = Math.random() * w;
     l.y = Math.random() * h;
     if (!anywhere) {
@@ -248,24 +249,24 @@ export function bubbles(canvas: HTMLCanvasElement, below: HTMLCanvasElement, sto
   return {
     resize() {
       shown = true;
-      dpr = Math.min(window.devicePixelRatio || 1, 2);
+      dpr = stage.dpr(2);
       for (const c of [ctx, lctx]) {
-        c.canvas.width = window.innerWidth * dpr;
-        c.canvas.height = window.innerHeight * dpr;
+        c.canvas.width = stage.w * dpr;
+        c.canvas.height = stage.h * dpr;
         c.setTransform(dpr, 0, 0, dpr, 0, 0);
       }
     },
     // t: seconds, as the shader's u_time; dt: seconds since the last draw (0 to just redraw).
     draw(t: number, dt: number, weight: number, day: number) {
       if (shown) {
-        ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
-        lctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+        ctx.clearRect(0, 0, stage.w, stage.h);
+        lctx.clearRect(0, 0, stage.w, stage.h);
       }
       shown = weight >= 0.003;
       ctx.canvas.style.visibility = lctx.canvas.style.visibility = shown ? '' : 'hidden'; // hidden, an idle canvas costs nothing
       if (!shown) return;
-      const w = window.innerWidth / cell;
-      const h = window.innerHeight / cell;
+      const w = stage.w / cell;
+      const h = stage.h / cell;
       const shadows = new Path2D();
       const surface = new Path2D();
       const under = [new Path2D(), new Path2D(), new Path2D()]; // shallow, mid, deep
@@ -287,7 +288,7 @@ export function bubbles(canvas: HTMLCanvasElement, below: HTMLCanvasElement, sto
         const r = size[i] * (1 - 0.35 * z[i]) * Math.min(1, age[i] / 0.6, (life[i] - age[i]) / 0.6);
         if (r <= 0.1) continue;
         const sx = x[i] * cell;
-        const sy = window.innerHeight - y[i] * cell;
+        const sy = stage.h - y[i] * cell;
         // Its shadow, down and to the right like the boulders', further off the higher above the bed.
         const lift = (1 - z[i]) * depthFast(stones, pools, x[i], y[i]);
         shadows.moveTo(sx + 2 + 8 * lift + r, sy + 3 + 11 * lift);
@@ -309,7 +310,7 @@ export function bubbles(canvas: HTMLCanvasElement, below: HTMLCanvasElement, sto
         const lift = depthFast(stones, pools, l.x, l.y);
         l.shadow = [10 + 35 * lift, 14 + 49 * lift];
         l.shown = new Path2D();
-        l.shown.addPath(l.path, new DOMMatrix().translate(l.x * cell, window.innerHeight - l.y * cell).rotate((-l.turn * 180) / Math.PI).scale(l.size));
+        l.shown.addPath(l.path, new DOMMatrix().translate(l.x * cell, stage.h - l.y * cell).rotate((-l.turn * 180) / Math.PI).scale(l.size));
       }
       ctx.globalAlpha = weight * 0.25;
       ctx.fillStyle = 'rgb(15, 35, 45)';
