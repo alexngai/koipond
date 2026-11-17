@@ -5,6 +5,7 @@
 // still frame for reduced motion. On the page's [data-boids] canvas, from startFish() (after
 // startWater()).
 import { water } from './stream';
+import { quality } from './quality';
 
 type V = { x: number; y: number };
 const rand = (a: number, b: number) => a + Math.random() * (b - a);
@@ -317,9 +318,9 @@ class Fish {
       ctx.lineTo(p.x, p.y);
     }
     ctx.closePath();
-    ctx.fillStyle = color;
-    ctx.shadowColor = color;
-    ctx.shadowBlur = this.glow;
+    ctx.fillStyle = tone(color);
+    ctx.shadowColor = tone(color);
+    ctx.shadowBlur = glowing ? this.glow : 0;
     ctx.fill();
   }
 
@@ -338,9 +339,9 @@ class Fish {
     const tip = add(add(s[at], mul(step, shape.length - 2)), mul(side, 0.35 * this.size * width));
     ctx.lineTo(tip.x, tip.y);
     ctx.closePath();
-    ctx.fillStyle = this.finColor;
-    ctx.shadowColor = this.color;
-    ctx.shadowBlur = 2;
+    ctx.fillStyle = tone(this.finColor);
+    ctx.shadowColor = tone(this.color);
+    ctx.shadowBlur = glowing ? 2 : 0;
     ctx.fill();
   }
 
@@ -495,7 +496,7 @@ class Salmon extends Fish {
       ctx.beginPath();
       for (const p of [add(base, side), add(mid, mul(side, 0.9)), add(base, mul(dir, this.tailLength * this.size)), sub(mid, mul(side, 0.4)), sub(base, mul(side, 0.4))]) ctx.lineTo(p.x, p.y);
       ctx.closePath();
-      ctx.fillStyle = this.finColor;
+      ctx.fillStyle = tone(this.finColor);
       ctx.fill();
     }
   }
@@ -510,7 +511,7 @@ class Salmon extends Fish {
     for (let i = 0; i < width.length; i++) ctx.lineTo(edge(i, 1).x, edge(i, 1).y);
     for (let i = width.length - 1; i >= 0; i--) ctx.lineTo(edge(i, -1).x, edge(i, -1).y);
     ctx.closePath();
-    ctx.fillStyle = this.finColor;
+    ctx.fillStyle = tone(this.finColor);
     ctx.fill();
   }
 
@@ -613,7 +614,7 @@ class Koi extends Salmon {
         ctx.lineTo(q.x, q.y);
       }
       ctx.closePath();
-      ctx.fillStyle = p.color;
+      ctx.fillStyle = tone(p.color);
       ctx.fill();
     }
     ctx.restore();
@@ -671,6 +672,28 @@ function koiPattern() {
 }
 
 // What the reef's damselfish keep an eye on, each frame: the sharks, the cursor, and the time step.
+// The colour they're drawn in (CSS's saturate() and brightness(), as their canvas's filter once
+// did): richer in the bright day water of the reef and the beach, or they'd wash out; dimmer and
+// greyer in the pond at night, with the lilies. Each colour worked out once per look.
+let look = { vivid: 1, light: 1 };
+const tones = new Map<string, string>();
+const tone = (c: string) => {
+  if (look.vivid === 1 && look.light === 1) return c;
+  let t = tones.get(c);
+  if (!t) {
+    const [r, g, b, a = 1] = (c.match(/[\d.]+/g) ?? []).map(Number);
+    const grey = 0.213 * r + 0.715 * g + 0.072 * b;
+    const [R, G, B] = [r, g, b].map((v) => Math.round(Math.min(255, Math.max(0, (grey + (v - grey) * look.vivid) * look.light))));
+    tones.set(c, (t = `rgba(${R},${G},${B},${a})`));
+  }
+  return t;
+};
+const setLook = (vivid: number, light: number) => {
+  if (vivid === look.vivid && light === look.light) return;
+  look = { vivid, light };
+  tones.clear();
+};
+let glowing = true; // their colour blurring out round them (not in their shadows)
 let sharks: Fish[] = [];
 let cursor: V | null = null;
 let step = 1 / 60;
@@ -737,19 +760,32 @@ class Damsel extends Fish {
 export function startFish() {
   const canvas = document.querySelector<HTMLCanvasElement>('[data-boids]');
   const ctx = canvas?.getContext('2d');
-  if (canvas && ctx) {
+  // Their shadows on the floor, cast the way the foam's are but shorter (they swim lower): drawn as
+  // silhouettes at half the resolution off the page (`shapes`), then blurred onto a canvas of their
+  // own beneath them. Where a canvas can't blur (Safari), at a fifth of it, stretched to soften them.
+  const shadows = document.querySelector<HTMLCanvasElement>('[data-fish-shadows]');
+  const stx = shadows?.getContext('2d');
+  const shapes = document.createElement('canvas');
+  const htx = shapes.getContext('2d');
+  const blurs = !!stx && 'filter' in stx;
+  const SHADOW = { scale: blurs ? 0.5 : 0.2, x: 30, y: 42, blur: 3, alpha: 0.45 }; // CSS px
+  if (canvas && ctx && shadows && stx && htx) {
     let w = 0;
     let h = 0;
     const resize = () => {
-      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const dpr = Math.min(window.devicePixelRatio || 1, quality.now.fish); // less where frames come slowly (quality.ts)
       w = window.innerWidth;
       h = window.innerHeight;
       canvas.width = w * dpr;
       canvas.height = h * dpr;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      shadows.width = shapes.width = Math.ceil(w * SHADOW.scale);
+      shadows.height = shapes.height = Math.ceil(h * SHADOW.scale);
+      htx.setTransform(SHADOW.scale, 0, 0, SHADOW.scale, 0, 0);
     };
     resize();
     window.addEventListener('resize', resize);
+    quality.onChange(resize);
 
     // Fewer fish on small screens, same density as the original on a laptop.
     // (All made again, in new places and patterns, when the water is rerolled: water.generation.)
@@ -842,34 +878,49 @@ export function startFish() {
         populate();
       }
       ctx.clearRect(0, 0, w, h);
+      htx.clearRect(0, 0, w, h);
+      const day = document.documentElement.dataset.time === 'day';
       for (const [school, weight] of schools) {
         if (weight < 0.003) continue;
+        if (school === pond) setLook(day ? 1 : 0.75, day ? 1 : 0.55);
+        else setLook(day && school !== run ? 1.8 : 1, 1);
         for (let i = school.length - 1; i >= 0; i--) {
           school[i].think(school, i, pointer, dt, now);
           const [dx, dy] = water.at?.(school[i].x, school[i].y) ?? [0, 0];
           school[i].move(w, h, now, { x: dx / 60, y: dy / 60 }); // px/s to px per (60 Hz) step
         }
-        ctx.globalAlpha = weight;
+        ctx.globalAlpha = htx.globalAlpha = weight;
         for (let i = school.length - 1; i >= 0; i--) {
           const f = school[i];
-          const lift = school === sea ? water.lift : undefined;
-          if (!lift) {
-            f.draw(ctx);
-            continue;
-          }
           // In the beach scene, seen through the waves: each part of it lifted up the screen by the
           // water over it, as the seabed is, so it shifts, and bends, as the swell passes over.
+          const lift = school === sea ? water.lift : undefined;
           const shape = f.shape;
-          f.shape = shape.map((p) => ({ x: p.x, y: p.y + lift(p.x, p.y) }));
+          if (lift) f.shape = shape.map((p) => ({ x: p.x, y: p.y + lift(p.x, p.y) }));
           f.draw(ctx);
+          glowing = false;
+          f.draw(htx);
+          glowing = true;
           f.shape = shape;
         }
       }
-      ctx.globalAlpha = 1;
-      // The caustics falling on them (scene.ts's glints), painted only where there's a fish.
+      ctx.globalAlpha = htx.globalAlpha = 1;
+      // The shadows: the silhouettes, cast and blurred, all one colour.
+      stx.clearRect(0, 0, shadows.width, shadows.height);
+      if (blurs) stx.filter = `blur(${SHADOW.blur * SHADOW.scale}px)`;
+      stx.drawImage(shapes, SHADOW.x * SHADOW.scale, SHADOW.y * SHADOW.scale);
+      if (blurs) stx.filter = 'none';
+      stx.globalCompositeOperation = 'source-in';
+      stx.fillStyle = `rgba(0, 0, 0, ${SHADOW.alpha})`;
+      stx.fillRect(0, 0, shadows.width, shadows.height);
+      stx.globalCompositeOperation = 'source-over';
+      // The caustics falling on them (scene.ts's glints), painted only where there's a fish: fainter
+      // on the richer and the dimmer fish (tone()), as when their colour was a filter over the glints too.
       if (water.glints) {
         ctx.globalCompositeOperation = 'source-atop';
+        ctx.globalAlpha = 1 - (day ? 0.5 * (reefWeight + water.beach) : 0.6 * water.pond);
         ctx.drawImage(water.glints, 0, 0, w, h);
+        ctx.globalAlpha = 1;
         ctx.globalCompositeOperation = 'source-over';
       }
     };

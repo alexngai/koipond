@@ -102,6 +102,7 @@ export function lilies(canvas: HTMLCanvasElement, cell: number) {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
       }
       shown = weight >= 0.003;
+      canvas.style.visibility = shown ? '' : 'hidden'; // hidden, an idle canvas costs nothing
       if (!shown) return;
       // About one drop a second for every 50,000 CSS px² of window. One landing on a pad makes no ring.
       const [w, h] = [window.innerWidth, window.innerHeight];

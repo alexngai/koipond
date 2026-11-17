@@ -31,6 +31,9 @@ screen saver or a TV's browser. Its address sets it up:
   `night` (`HH:MM`, 07:00 and 19:00 unless given).
 - `cycle`: minutes between new layouts (0, the default: never). With a random scene, each is a
   different scene too.
+- `quality`: `0` (all of it) to `4`, to pin how much it spends on looks. Unless it's given, it steps
+  down by itself where frames come slowly (a big screen, a slow machine) and back up when there's
+  room (`src/water/quality.ts`).
 
 For example `?scene=beach&day=06:30&night=20:00&cycle=15`. On a Mac,
 [Plash](https://sindresorhus.com/plash) shows it as the desktop wallpaper. It keeps the GPU busy,

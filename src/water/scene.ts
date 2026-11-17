@@ -13,6 +13,7 @@ import { lilies } from './pond';
 import { spray } from './beach';
 import { shore } from './shore';
 import { placeSurf, packSurf, buildSurf, groundAt, surfAt, TILT, WORLD_H, type SurfGrid, type Swell } from './surf';
+import { quality } from './quality';
 
 // The reef and the beach both ride the surf model (surf.ts, surf.glsl), each on its own grid.
 const SCENES = { ocean: SURF_GLSL + OCEAN, stream: STREAM, pond: POND, beach: SURF_GLSL + BEACH };
@@ -113,8 +114,9 @@ export function startWater(start: { scene: Scene; time: Time }) {
     gl.blendFunc(gl.ONE, gl.ONE); // while crossfading, two scenes add up, each scaled by its weight
     const layer = Number(canvas.dataset.water);
     // ponytail: the soft floor renders at 1 canvas px per CSS px and the surface's thin lines at
-    // 1.5x (sharp enough on retina, at about half the cost of 2x) to keep laptops cool.
-    const scale = layer ? Math.min(window.devicePixelRatio || 1, 1.5) : 1;
+    // 1.5x (sharp enough on retina, at about half the cost of 2x) to keep laptops cool; less of each
+    // where frames come slowly (quality.ts).
+    const scale = 1; // set by fit()
     const pass = (define: string) => build(gl, PRELUDE + `\n#define ${define}\n` + STREAM);
     const passes = layer ? { foamStep: pass('FOAM_STEP') } : { bedPass: pass('BED_PASS'), bumpPass: pass('HEIGHT_PASS'), currentPass: pass('CURRENT_PASS') };
     const rockPass = build(gl, PRELUDE + '\n#define ROCK_PASS\n' + SURF_GLSL + BEACH);
@@ -239,9 +241,9 @@ export function startWater(start: { scene: Scene; time: Time }) {
     const extras = () => ({
       surface: bubbles(document.querySelector<HTMLCanvasElement>('[data-bubbles]')!, document.querySelector<HTMLCanvasElement>('[data-leaves]')!, STONES, POOLS, DIR, CELL),
       pads: lilies(document.querySelector<HTMLCanvasElement>('[data-lilies]')!, CELL),
-      flecks: spray(document.querySelector<HTMLCanvasElement>('[data-spray]')!, document.querySelector<HTMLCanvasElement>('[data-goo]')!, SURF, SURF, TILT, DEBUG_FLOW),
+      flecks: spray(document.querySelector<HTMLCanvasElement>('[data-spray]')!, document.querySelector<HTMLCanvasElement>('[data-goo]')!, document.querySelector<HTMLCanvasElement>('[data-fused]')!, SURF, SURF, TILT, DEBUG_FLOW),
       // The reef's, riding its own swell (its grid worked out in resize()), seen straight down.
-      reefFlecks: spray(document.querySelector<HTMLCanvasElement>('[data-reef-spray]')!, document.querySelector<HTMLCanvasElement>('[data-reef-goo]')!, REEF_SWELL, () => reefGrid, 0),
+      reefFlecks: spray(document.querySelector<HTMLCanvasElement>('[data-reef-spray]')!, document.querySelector<HTMLCanvasElement>('[data-reef-goo]')!, document.querySelector<HTMLCanvasElement>('[data-reef-fused]')!, REEF_SWELL, () => reefGrid, 0),
       life: shore(document.querySelector<HTMLCanvasElement>('[data-shore]')!, document.querySelector<HTMLCanvasElement>('[data-sky]')!),
     });
     let { surface, pads, flecks, reefFlecks, life } = extras();
@@ -293,7 +295,7 @@ export function startWater(start: { scene: Scene; time: Time }) {
         }
       }
       // The glints on the fish.
-      if (glints) {
+      if (glints && quality.now.glints) {
         const { canvas, gl, prog } = glints;
         const [cw, ch] = [Math.ceil(window.innerWidth / 2), Math.ceil(window.innerHeight / 2)];
         if (canvas.width !== cw || canvas.height !== ch) [canvas.width, canvas.height] = [cw, ch];
@@ -355,6 +357,18 @@ export function startWater(start: { scene: Scene; time: Time }) {
       gl.enable(gl.BLEND);
       gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     };
+    // The floor's and the surface's canvases, at the resolution quality.ts allows.
+    const fit = () => {
+      for (const L of layers) {
+        L.scale = L.layer ? Math.min(window.devicePixelRatio || 1, quality.now.surface) : quality.now.floor;
+        L.canvas.width = window.innerWidth * L.scale;
+        L.canvas.height = window.innerHeight * L.scale;
+      }
+    };
+    quality.onChange(() => {
+      fit();
+      draw(last, 0);
+    });
     const resize = () => {
       surface.resize();
       pads.resize();
@@ -372,10 +386,7 @@ export function startWater(start: { scene: Scene; time: Time }) {
         y: window.innerHeight - STONES.data[4 * i + 1] * CELL,
         r: STONES.data[4 * i + 2] * CELL,
       }));
-      for (const { canvas, scale } of layers) {
-        canvas.width = window.innerWidth * scale;
-        canvas.height = window.innerHeight * scale;
-      }
+      fit();
       // The maps only need making again if the window has outgrown them (they start screen-sized):
       // the bed is drawn, and the foam run on for 8 seconds so the stream opens foamy.
       const need = [Math.max(screen.width, window.innerWidth), Math.max(screen.height, window.innerHeight)].map((v) => Math.ceil(v / QUARTER) * QUARTER);
@@ -463,16 +474,19 @@ export function startWater(start: { scene: Scene; time: Time }) {
         return scene;
       },
       setScene(s: Scene) {
+        quality.settle(); // the crossfade's two scenes at once aren't a slow machine
         scene = s;
         show();
       },
       setTime(t: Time) {
+        quality.settle();
         time = t;
         show();
       },
       // A new random layout, and new fish (fish.ts watches water.generation), laid out while the
       // water and fish dip out for a moment. The maps are made again from scratch (area reset).
       reroll() {
+        quality.settle(3000);
         const go = () => {
           ({ DIR, SEED, STONES, POOLS, REEF, REEF_SWELL, SURF } = layout());
           reefGrid = null;
