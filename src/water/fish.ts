@@ -42,9 +42,8 @@ class Fish {
   v: V = { x: rand(-1, 1), y: rand(-1, 1) };
   acc: V = { x: 0, y: 0 };
   heading: V;
-  effort = 1; // how hard it is swimming, 1 at cruising speed
-  strain = 1; // how hard it would need to swim for where it wants to go (effort, before its limit)
-  rush = 1; // how fast the water around it runs, against the stream's usual speed (1 out of it)
+  effort = 1; // how fast it's swimming through the water, against its top speed
+  tuned = 0; // the speed its tail's `period` is tuned for (0: its own top speed); see beat()
   sway = 0; // the swimming wave's bend just past the tail, -1 to 1 (times effort)
   clock = 0; // its own swimming time, ms: see beat()
   lastNow = 0;
@@ -236,8 +235,6 @@ class Fish {
     // into the current to get there; it only swims so fast, so against a strong current it
     // faces upstream and still slips back. The current carries it, and its whole body, along.
     let swim = sub(mul(this.v, PACE), drift);
-    this.strain = mag(swim) / (this.speed * PACE);
-    this.rush += ((water.current.strength ? (mag(drift) * 60) / (water.current.speed * water.current.strength) : 1) - this.rush) * 0.1;
     const most = this.speed * PACE * 1.15;
     if (mag(swim) > most) swim = mul(norm(swim), most);
     // It turns to face the way it swims; but barely moving through the water, it barely turns
@@ -276,15 +273,13 @@ class Fish {
     this.updateSegments(now * PACE);
   }
 
-  // Its swimming time: runs at the clock's pace at cruising effort in the stream's usual current,
-  // faster the harder it has to work and the faster the water around it runs (up to 1.6x past a
-  // boulder), slower as it eases off, but never below 0.7x: a fish holding its place still swims.
-  // Out of a current, only effort counts.
+  // Its swimming time, which its tail beats by: it runs with how fast it swims through the water, so
+  // each beat carries it about as far (`period` is the beat at the speed it's tuned for). A fish
+  // holding its place in a current beats as hard as the current runs; one resting in slack water,
+  // slowly, but never under 0.4 of the pace: even barely moving, it keeps a lazy beat.
   beat(now: number) {
-    const water = 1 + 0.6 * (Math.min(this.rush, 2) - 1);
-    // Each kind's tail beats at a period that goes by its size (a bigger fish's slower, more sweeping),
-    // and that's the size it looks: drawn smaller on a phone, it beats faster (stage.tempo).
-    if (this.lastNow) this.clock += (now - this.lastNow) * stage.tempo * Math.max(0.7, (0.35 + 0.65 * Math.min(this.strain, 2)) * water);
+    const pace = Math.max(0.4, (this.effort * this.speed) / (this.tuned || this.speed));
+    if (this.lastNow) this.clock += (now - this.lastNow) * pace;
     this.lastNow = now;
     return this.clock;
   }
@@ -359,12 +354,13 @@ class Predator extends Fish {
     super(x, y);
     this.type = 'predator';
     this.speed = 2 * 0.8; // unhurried: as fast as the school it hunts
+    this.tuned = 2; // its tail tuned at its old top speed, so slowed it beats slower too
     this.size = ~~rand(7, 9);
     const [r, g, b] = [~~rand(130, 170), ~~rand(160, 200), ~~rand(200, 225)];
     this.color = `rgb(${r},${g},${b})`;
     this.finColor = `rgb(${r - 10},${g - 10},${b - 10})`;
     this.angMomentum = 0.047; // turn radius ~ speed / angMomentum: 1.5x wider than 0.07, so fish out-turn it
-    this.period = (50 * this.size * 0.85 * PACE) / 1.5; // tail beats half again the original rate (it looked to drift)
+    this.period = (50 * this.size * 0.85 * PACE) / 1.5; // half again the original beat (it looked to drift)
     this.amplitude = 3 * this.size * 1.2;
     this.body = PREDATOR_BODY;
     this.sizeMult = 1.5;

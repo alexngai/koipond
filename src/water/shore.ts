@@ -213,7 +213,7 @@ export function shore(low: HTMLCanvasElement, sky: HTMLCanvasElement) {
           if (sand(c.x + side[0] * (step + lead), c.y + side[1] * (step + lead))) {
             c.x += side[0] * step;
             c.y += side[1] * step;
-            c.gait += 26 * dt * stage.tempo; // its legs a blur
+            c.gait += 26 * dt; // its legs a blur
           } else {
             c.dir = -c.dir; // the sand ends: stop, and go back the other way
             c.walking = false;
@@ -260,7 +260,7 @@ export function shore(low: HTMLCanvasElement, sky: HTMLCanvasElement) {
           g.until = g.gliding ? rand(1, 3) : rand(0.8, 2);
           g.turn = rand(-0.08, 0.08);
         }
-        if (!g.gliding) g.beat += dt * 9 * stage.tempo;
+        if (!g.gliding) g.beat += dt * 9;
         const [c, sn] = [Math.cos(g.turn * dt), Math.sin(g.turn * dt)];
         [g.vx, g.vy] = [g.vx * c - g.vy * sn, g.vx * sn + g.vy * c];
         g.x += g.vx * dt;
