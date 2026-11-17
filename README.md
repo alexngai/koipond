@@ -82,6 +82,27 @@ styles, weak enough that a page's win: the layers are in `pond.element` (class `
 `.koipond-fish { opacity: 0.6 }` behind text). On a phone the scene is laid out as on a bigger screen
 and drawn smaller. One pond to a page at a time.
 
+### To do: composing your own
+
+For now (0.x) the four scenes are presets: each its own water, extras and fish, laid out at random.
+What composing them would take, easiest first:
+
+- [ ] **`seed`**, to lay a pond out the same way again: the 57 calls to `Math.random()` in `src/water/`
+      drawing on one seeded generator instead.
+- [ ] **Your choice of fish in any water** (`fish: [{ kind: 'koi', count: 8 }]`). Each school is tied
+      to its scene now (`fish.ts`'s `frame()`: the reef's school fades with the reef, the salmon with
+      the stream, …); instead a list per pond, each kind still getting what it needs from the water:
+      the salmon the current (`water.at`), the beach's fish its depth, to keep off the sand
+      (`water.depth`), the damselfish the reef's coral (`water.colonies`).
+- [ ] **The current as part of the water**, not of the stream scene: the fish read the stream's
+      weight (`water.share`) as how strong it is.
+- [ ] **Your choice of extras** (`extras: ['lilies', 'rain', 'leaves', 'gulls']`): the 2D layers
+      (`pond.ts`, the leaves and bubbles in `stream.ts`, `shore.ts`) drawn over any water, each fading
+      with its own weight rather than its scene's.
+- [ ] **Mixing waters** (a pond's floor under the reef's swell): the hard one. Each scene's water is
+      one shader, floor and surface, so a new mix is new GLSL; short of that, some of each shader
+      (palette, depth, size of the swell) could be options.
+
 ## Developing
 
 ```sh

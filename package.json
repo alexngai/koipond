@@ -1,6 +1,6 @@
 {
   "name": "koipond",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "description": "Living water scenes behind a web page: a coral reef, a mountain stream, a koi pond or a beach, by day or by night, with fish that swim away from the cursor. WebGL, no dependencies.",
   "keywords": [
     "koi",
