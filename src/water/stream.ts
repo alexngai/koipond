@@ -31,23 +31,26 @@ export function placeStones(cell: number): Stones {
   return { data, count };
 }
 
-// For the fish (fish.ts), kept up to date by scene.ts, all in CSS px with y down: the
-// water's velocity at a point on screen (px per second), how much the stream is showing (0-1),
-// its boulders, which way it runs (a unit vector), and its usual speed (px per second). And how much
-// the pond and the beach are showing (0-1), for the koi and the beach's fish; how deep the beach's
-// water is at a point (m) and how far its waves lift what's under them there (px), so its fish keep
-// to the sea and are seen through the waves; the caustics to paint onto the fish (glints); and the
-// reef's coral colonies, for its damselfish. `generation` counts rerolls of the random layout, when
-// the fish are made again too.
+// For the fish (fish.ts), kept up to date by scene.ts, all in CSS px with y down:
+// - the current, part of the water rather than of any one scene: how strong it is (0, still, to 1,
+//   the stream's full current; it fades with the water that has it), which way it runs (a unit
+//   vector) and its usual speed (px per second), how fast it flows at a point (px per second, at that
+//   strength), and the boulders it parts round, which make slack water behind them;
+// - how much the stream, the pond and the beach are showing (0-1), for the salmon, the koi and the
+//   beach's fish; whether it's day;
+// - how deep the beach's water is at a point (m) and how far its waves lift what's under them there
+//   (px), so its fish keep to the sea and are seen through the waves; the caustics to paint onto the
+//   fish (glints); and the reef's coral colonies, for its damselfish;
+// - `generation`, which counts rerolls of the random layout, when the fish are made again too.
 type Point = { x: number; y: number };
-export const water: { at?: (x: number, y: number) => [number, number]; depth?: (x: number, y: number) => number; lift?: (x: number, y: number) => number; glints?: ImageBitmap | HTMLCanvasElement; colonies?: (Point & { r: number })[]; share: number; pond: number; beach: number; rocks: (Point & { r: number })[]; downstream: Point; speed: number; generation: number } = {
-  share: 0,
-  generation: 0,
+export type Current = { strength: number; downstream: Point; speed: number; at?: (x: number, y: number) => [number, number]; rocks: (Point & { r: number })[] };
+export const water: { current: Current; depth?: (x: number, y: number) => number; lift?: (x: number, y: number) => number; glints?: ImageBitmap | HTMLCanvasElement; colonies?: (Point & { r: number })[]; day: boolean; stream: number; pond: number; beach: number; generation: number } = {
+  current: { strength: 0, downstream: { x: 0, y: 0 }, speed: 1, rocks: [] },
+  day: true,
+  stream: 0,
   pond: 0,
   beach: 0,
-  speed: 1,
-  rocks: [],
-  downstream: { x: 0, y: 0 },
+  generation: 0,
 };
 
 // Hollows (deeper, amount > 0) and rises (shallower, < 0) in the bed: broad smooth bumps spread

@@ -21,10 +21,12 @@ const SCENES = { ocean: SURF_GLSL + OCEAN, stream: STREAM, pond: POND, beach: SU
 export type Scene = keyof typeof SCENES;
 export type Time = 'day' | 'night';
 export const NAMES = Object.keys(SCENES) as Scene[];
+// How much current each scene's water has (1: the stream's, round its boulders): the fish swim
+// against it (stream.ts: water.current), and it fades with the water that has it.
+const CURRENTS: Record<Scene, number> = { ocean: 0, stream: 1, pond: 0, beach: 0 };
 const VERT = `attribute vec2 p; void main() { gl_Position = vec4(p, 0.0, 1.0); }`;
 const UNIFORMS = ['u_time', 'u_cell', 'u_layer', 'u_day', 'u_weight', 'u_res', 'u_dir', 'u_seed', 'u_stones', 'u_stoneCount', 'u_pools', 'u_poolCount', 'u_current', 'u_debug', 'u_foamView', 'u_dt', 'u_foam', 'u_bed', 'u_flowMap', 'u_bedView', 'u_reef', 'u_surfTex', 'u_surfGrid', 'u_surfSize', 'u_surfFrame', 'u_rocks', 'u_bump', 'u_scenes', 'u_reefBump'];
 const CELL = 220; // CSS px across a foam cell
-const DEBUG_FLOW = new URLSearchParams(location.search).has('flow'); // ?flow draws the stream's current
 
 // The random layout, new each visit and on each reroll: which way the swell and the current run, the
 // patterns' seed, the stream's boulders and bed, the reef's coral and its swell, and the beach's
@@ -42,7 +44,7 @@ const layout = () => {
     SURF: placeSurf(),
   };
 };
-let { DIR, SEED, STONES, POOLS, REEF, REEF_SWELL, SURF } = layout();
+let { DIR, SEED, STONES, POOLS, REEF, REEF_SWELL, SURF } = {} as ReturnType<typeof layout>; // laid out by startWater()
 
 // The stream's offscreen maps (passes in stream.glsl), all covering the larger of the screen and
 // the window, so resizing the window, or a phone's address bar coming and going, doesn't have to
@@ -96,9 +98,13 @@ const build = (gl: WebGLRenderingContext, frag: string) => {
 // over them, and on their own canvases the stream's leaves and bubbles, the pond's lilies, the
 // beach's and the reef's particles, and the beach's crab and gulls. Returns
 // the controls for the scene and time of day, which it eases between, or null without WebGL (the
-// canvases stay empty).
-export function startWater(start: { scene: Scene; time: Time }) {
-  const layers = [...document.querySelectorAll<HTMLCanvasElement>('[data-water]')].flatMap((canvas) => {
+// canvases stay empty). Its canvases are those in `root` (index.ts makes them); it stops when `signal`
+// aborts. `flow` draws the stream's current and the beach's surf model instead, for working on them.
+export function startWater(start: { scene: Scene; time: Time; root: HTMLElement; signal: AbortSignal; flow?: boolean }) {
+  const DEBUG_FLOW = !!start.flow;
+  ({ DIR, SEED, STONES, POOLS, REEF, REEF_SWELL, SURF } = layout());
+  area = [0, 0]; // its maps made from scratch, on its own canvases
+  const layers = [...start.root.querySelectorAll<HTMLCanvasElement>('[data-water]')].flatMap((canvas) => {
     const gl = canvas.getContext('webgl', { antialias: false });
     if (!gl) return [];
     const progs = {} as Record<Scene, NonNullable<ReturnType<typeof build>>>;
@@ -169,18 +175,20 @@ export function startWater(start: { scene: Scene; time: Time }) {
   })();
 
   if (layers.length) {
-    // Scene and time of day, also on <html> so the page can restyle.
+    // Scene and time of day, also on the root (data-scene, data-time) so the page can restyle.
     let { scene, time } = start;
     const weights = Object.fromEntries(NAMES.map((n) => [n, n === scene ? 1 : 0])) as Record<Scene, number>;
     let day = time === 'day' ? 1 : 0;
     const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-    // Let the fish feel the stream's current, fading in and out with the scene, and see its boulders.
-    water.downstream = { x: DIR[0], y: -DIR[1] };
-    water.speed = CURRENT * CELL;
-    water.at = (x, y) => {
+    // The water's current, for the fish: which way and how fast it runs, round the boulders (the
+    // stream's), at the strength the water showing has (CURRENTS, eased with the scenes in draw()).
+    const current = water.current;
+    current.downstream = { x: DIR[0], y: -DIR[1] };
+    current.speed = CURRENT * CELL;
+    current.at = (x, y) => {
       const [vx, vy] = flow(STONES, POOLS, DIR, x / CELL, (stage.h - y) / CELL, performance.now() / 1000);
-      return [vx * CELL * weights.stream, -vy * CELL * weights.stream];
+      return [vx * CELL * current.strength, -vy * CELL * current.strength];
     };
     // Which surf grid a program reads (surf.glsl), and on which texture unit.
     const surfUniforms = (gl: WebGLRenderingContext, u: Record<string, WebGLUniformLocation | null>, g: SurfGrid, s: Swell, unit: number) => {
@@ -240,12 +248,12 @@ export function startWater(start: { scene: Scene; time: Time }) {
       L.cur = 1 - L.cur;
     };
     const extras = () => ({
-      surface: bubbles(document.querySelector<HTMLCanvasElement>('[data-bubbles]')!, document.querySelector<HTMLCanvasElement>('[data-leaves]')!, STONES, POOLS, DIR, CELL),
-      pads: lilies(document.querySelector<HTMLCanvasElement>('[data-lilies]')!, CELL),
-      flecks: spray(document.querySelector<HTMLCanvasElement>('[data-spray]')!, document.querySelector<HTMLCanvasElement>('[data-goo]')!, document.querySelector<HTMLCanvasElement>('[data-fused]')!, SURF, SURF, TILT, DEBUG_FLOW),
+      surface: bubbles(start.root.querySelector<HTMLCanvasElement>('[data-bubbles]')!, start.root.querySelector<HTMLCanvasElement>('[data-leaves]')!, STONES, POOLS, DIR, CELL),
+      pads: lilies(start.root.querySelector<HTMLCanvasElement>('[data-lilies]')!, CELL),
+      flecks: spray(start.root.querySelector<HTMLCanvasElement>('[data-spray]')!, start.root.querySelector<HTMLCanvasElement>('[data-goo]')!, start.root.querySelector<HTMLCanvasElement>('[data-fused]')!, SURF, SURF, TILT, DEBUG_FLOW),
       // The reef's, riding its own swell (its grid worked out in resize()), seen straight down.
-      reefFlecks: spray(document.querySelector<HTMLCanvasElement>('[data-reef-spray]')!, document.querySelector<HTMLCanvasElement>('[data-reef-goo]')!, document.querySelector<HTMLCanvasElement>('[data-reef-fused]')!, REEF_SWELL, () => reefGrid, 0),
-      life: shore(document.querySelector<HTMLCanvasElement>('[data-shore]')!, document.querySelector<HTMLCanvasElement>('[data-sky]')!),
+      reefFlecks: spray(start.root.querySelector<HTMLCanvasElement>('[data-reef-spray]')!, start.root.querySelector<HTMLCanvasElement>('[data-reef-goo]')!, start.root.querySelector<HTMLCanvasElement>('[data-reef-fused]')!, REEF_SWELL, () => reefGrid, 0),
+      life: shore(start.root.querySelector<HTMLCanvasElement>('[data-shore]')!, start.root.querySelector<HTMLCanvasElement>('[data-sky]')!),
     });
     let { surface, pads, flecks, reefFlecks, life } = extras();
     // Let the fish in the beach scene keep to the sea: how deep the water is at a point (CSS px).
@@ -267,7 +275,8 @@ export function startWater(start: { scene: Scene; time: Time }) {
       flecks.draw(now / 1000, weights.beach, day);
       reefFlecks.draw(now / 1000, weights.ocean, day);
       life.draw(now / 1000, dt, weights.beach, day, flecks.grid);
-      water.share = weights.stream;
+      current.strength = NAMES.reduce((sum, n) => sum + weights[n] * CURRENTS[n], 0);
+      water.stream = weights.stream;
       water.pond = weights.pond;
       water.beach = weights.beach;
       drawn = now;
@@ -314,8 +323,9 @@ export function startWater(start: { scene: Scene; time: Time }) {
     };
 
     const show = () => {
-      document.documentElement.dataset.scene = scene;
-      document.documentElement.dataset.time = time;
+      start.root.dataset.scene = scene === 'ocean' ? 'reef' : scene; // (the reef's shader is the ocean)
+      start.root.dataset.time = time;
+      water.day = time === 'day';
       if (still) draw(last, 1); // no animation loop to ease it in
     };
 
@@ -382,7 +392,7 @@ export function startWater(start: { scene: Scene; time: Time }) {
       }
       // The reef's coral colonies, for its fish to live about (CSS px, y down).
       water.colonies = REEF.colonies.map((c) => ({ x: c.x, y: stage.h - c.y, r: c.r }));
-      water.rocks = Array.from({ length: STONES.count }, (_, i) => ({
+      current.rocks = Array.from({ length: STONES.count }, (_, i) => ({
         x: STONES.data[4 * i] * CELL,
         y: stage.h - STONES.data[4 * i + 1] * CELL,
         r: STONES.data[4 * i + 2] * CELL,
@@ -459,12 +469,13 @@ export function startWater(start: { scene: Scene; time: Time }) {
       draw(last, 0); // resizing clears the canvas
     };
     resize();
-    window.addEventListener('resize', resize);
+    window.addEventListener('resize', resize, { signal: start.signal });
     show();
 
     if (!still) {
       // The water drifts slowly, so ~30 fps looks the same and costs half.
       const loop = (now: number) => {
+        if (start.signal.aborted) return;
         if (now - last >= 32) draw((last = now));
         requestAnimationFrame(loop);
       };
@@ -473,6 +484,9 @@ export function startWater(start: { scene: Scene; time: Time }) {
     return {
       get scene() {
         return scene;
+      },
+      get time() {
+        return time;
       },
       setScene(s: Scene) {
         quality.settle(); // the crossfade's two scenes at once aren't a slow machine
@@ -492,16 +506,17 @@ export function startWater(start: { scene: Scene; time: Time }) {
           ({ DIR, SEED, STONES, POOLS, REEF, REEF_SWELL, SURF } = layout());
           reefGrid = null;
           ({ surface, pads, flecks, reefFlecks, life } = extras());
-          water.downstream = { x: DIR[0], y: -DIR[1] };
+          current.downstream = { x: DIR[0], y: -DIR[1] };
           water.generation++;
           area = [0, 0];
           resize();
         };
         if (still) return go();
-        document.documentElement.classList.add('rerolling');
+        start.root.classList.add('koipond-rerolling');
         setTimeout(() => {
+          if (start.signal.aborted) return;
           go();
-          document.documentElement.classList.remove('rerolling');
+          start.root.classList.remove('koipond-rerolling');
         }, 250);
       },
     };

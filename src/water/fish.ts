@@ -1,9 +1,10 @@
 // The fish: a reef school of small fish with a couple of larger predators chasing them, and clouds of
 // damselfish living about its coral; salmon in the stream; koi in the pond; and on the beach the reef's
 // school again, keeping to the sea. Each school swims (and shows, fading) only while its scene does
-// (water.share, water.pond and water.beach, from scene.ts). Everything swims away from the cursor. A
-// still frame for reduced motion. On the page's [data-boids] canvas, from startFish() (after
-// startWater()).
+// (water.stream, water.pond and water.beach, from scene.ts); all of them feel the current where there
+// is one (water.current). Everything swims away from the cursor. A
+// still frame for reduced motion. On the [data-boids] canvas in `root` (index.ts makes it), from
+// startFish() (after startWater()), till `signal` aborts.
 import { water } from './stream';
 import { quality } from './quality';
 import { stage } from './stage';
@@ -138,7 +139,7 @@ class Fish {
     const away = this.wade ? this.keepToSea() : null;
     // Steer. While it rests (holding station in a current) the school's pull on it mostly
     // lets up, so it can settle rather than being dragged about (see settle()).
-    const k = (dt / (0.001 * this.size)) * (1 - 0.9 * this.hold * water.share);
+    const k = (dt / (0.001 * this.size)) * (1 - 0.9 * this.hold * water.current.strength);
     this.v = { x: this.v.x + this.acc.x * k, y: this.v.y + this.acc.y * k };
     if (away) {
       // Turning (keeping its speed: a fish that brakes barely turns, see move()), the harder the
@@ -157,7 +158,7 @@ class Fish {
     // the end of a rest) it swings round from the way it's facing, rather than slowing through a
     // stop and setting off the other way: a fish that barely moves barely turns (see move()), so
     // it would sit there, seemingly frozen, till it had come round.
-    const floor = this.cruise * this.speed * (1 - this.hold * water.share);
+    const floor = this.cruise * this.speed * (1 - this.hold * water.current.strength);
     const now_m = mag(this.v);
     if (now_m < floor) {
       const from = this.heading;
@@ -226,7 +227,7 @@ class Fish {
   settle(now: number) {
     const holding = Math.sin(now / 4000 + this.x / 1250 + this.y / 1650 + HOLD_PHASE) > 0;
     this.hold += ((holding && !this.alarmed ? 1 : 0) - this.hold) * 0.05;
-    this.v = mul(this.v, 1 - 0.9 * this.hold * water.share);
+    this.v = mul(this.v, 1 - 0.9 * this.hold * water.current.strength);
   }
 
   // drift: how far the water carries things this step (px; none outside the stream).
@@ -236,14 +237,14 @@ class Fish {
     // faces upstream and still slips back. The current carries it, and its whole body, along.
     let swim = sub(mul(this.v, PACE), drift);
     this.strain = mag(swim) / (this.speed * PACE);
-    this.rush += ((water.share ? (mag(drift) * 60) / (water.speed * water.share) : 1) - this.rush) * 0.1;
+    this.rush += ((water.current.strength ? (mag(drift) * 60) / (water.current.speed * water.current.strength) : 1) - this.rush) * 0.1;
     const most = this.speed * PACE * 1.15;
     if (mag(swim) > most) swim = mul(norm(swim), most);
     // It turns to face the way it swims; but barely moving through the water, it barely turns
     // (so it doesn't swing round after every tiny nudge), and in a current it settles nose
     // upstream.
     const grip = Math.min(1, mag(swim) / (0.3 * this.speed * PACE));
-    const face = add(mul(norm(swim), grip), mul(water.downstream, -(1 - grip) * water.share));
+    const face = add(mul(norm(swim), grip), mul(water.current.downstream, -(1 - grip) * water.current.strength));
     if (mag(face) > 1e-3) this.heading = norm(lerp(this.heading, norm(face), this.angMomentum * PACE * Math.max(grip, 0.3)));
     const m = mag(swim);
     this.effort = m / (this.speed * PACE);
@@ -429,7 +430,7 @@ class Salmon extends Fish {
   }
 
   settle(now: number) {
-    if (!water.share) return;
+    if (!water.current.strength) return;
     // Resting a little under half the time, on a rhythm nearby salmon share (only gently tied to
     // where it is, so its own swimming hardly speeds or stalls its rhythm).
     const resting = Math.sin(now / 5000 + this.x / 1500 + this.y / 1900 + HOLD_PHASE) > 0.15 && !this.alarmed;
@@ -437,22 +438,22 @@ class Salmon extends Fish {
     // Edge away from any boulder it's over, and find the slack water behind the nearest one ahead.
     let lee: V | null = null;
     let best = 320;
-    for (const r of water.rocks) {
+    for (const r of water.current.rocks) {
       const d = dist(this, r);
       if (d < r.r + 30) this.v = add(this.v, mul(norm(sub(this, r)), 0.25 * (1 - d / (r.r + 30)) * this.speed));
-      const spot = add(r, mul(water.downstream, 1.6 * r.r));
+      const spot = add(r, mul(water.current.downstream, 1.6 * r.r));
       // Only boulders ahead of it, or nearly alongside: it doesn't turn back to rest.
-      const ahead = -dot(sub(spot, this), water.downstream);
+      const ahead = -dot(sub(spot, this), water.current.downstream);
       if (dist(this, spot) < best && ahead > -40) {
         best = dist(this, spot);
         lee = spot;
       }
     }
     // Pushing upstream, or easing into that slack water (slowing as it arrives) and staying.
-    const upstream = mul(water.downstream, -0.8 * this.speed);
+    const upstream = mul(water.current.downstream, -0.8 * this.speed);
     const toLee = lee && sub(lee, this);
     const stay = toLee ? mul(norm(toLee), Math.min(this.speed, 0.02 * mag(toLee))) : mul(this.v, 0.1);
-    this.v = lerp(this.v, lerp(upstream, stay, this.hold), 0.08 * water.share);
+    this.v = lerp(this.v, lerp(upstream, stay, this.hold), 0.08 * water.current.strength);
   }
 
   // Swimming. Its spine follows the path of its head, stiffly, so it curves through turns; on
@@ -758,13 +759,13 @@ class Damsel extends Fish {
   }
 }
 
-export function startFish() {
-  const canvas = document.querySelector<HTMLCanvasElement>('[data-boids]');
+export function startFish(root: HTMLElement, signal: AbortSignal) {
+  const canvas = root.querySelector<HTMLCanvasElement>('[data-boids]');
   const ctx = canvas?.getContext('2d');
   // Their shadows on the floor, cast the way the foam's are but shorter (they swim lower): drawn as
   // silhouettes at half the resolution off the page (`shapes`), then blurred onto a canvas of their
   // own beneath them. Where a canvas can't blur (Safari), at a fifth of it, stretched to soften them.
-  const shadows = document.querySelector<HTMLCanvasElement>('[data-fish-shadows]');
+  const shadows = root.querySelector<HTMLCanvasElement>('[data-fish-shadows]');
   const stx = shadows?.getContext('2d');
   const shapes = document.createElement('canvas');
   const htx = shapes.getContext('2d');
@@ -785,7 +786,7 @@ export function startFish() {
       htx.setTransform(SHADOW.scale, 0, 0, SHADOW.scale, 0, 0);
     };
     resize();
-    window.addEventListener('resize', resize);
+    window.addEventListener('resize', resize, { signal });
     quality.onChange(resize);
 
     // Fewer fish on small screens, same density as the original on a laptop.
@@ -850,8 +851,8 @@ export function startFish() {
     let generation = water.generation;
 
     let pointer: V | null = null;
-    window.addEventListener('pointermove', (e) => (pointer = { x: e.clientX / stage.zoom, y: e.clientY / stage.zoom }), { passive: true });
-    document.addEventListener('pointerleave', () => (pointer = null));
+    window.addEventListener('pointermove', (e) => (pointer = { x: e.clientX / stage.zoom, y: e.clientY / stage.zoom }), { passive: true, signal });
+    document.addEventListener('pointerleave', () => (pointer = null), { signal });
 
     // Fish move a fixed step at a time (as in the original): 60 a second, whatever the frame rate.
     const STEP = 1000 / 60; // ms
@@ -862,11 +863,11 @@ export function startFish() {
       last = now;
       // The reef fish in the ocean, the salmon in the stream, the koi in the pond: each school only
       // swims (and shows, fading) while its scene does.
-      const reefWeight = Math.max(0, 1 - water.share - water.pond - water.beach);
+      const reefWeight = Math.max(0, 1 - water.stream - water.pond - water.beach);
       const schools: [Fish[], number][] = [
         [residents, reefWeight],
         [reef, reefWeight],
-        [run, water.share],
+        [run, water.stream],
         [pond, water.pond],
         [sea, water.beach],
       ];
@@ -883,7 +884,7 @@ export function startFish() {
       }
       ctx.clearRect(0, 0, w, h);
       htx.clearRect(0, 0, w, h);
-      const day = document.documentElement.dataset.time === 'day';
+      const day = water.day;
       for (const [school, weight] of schools) {
         if (weight < 0.003) continue;
         if (school === pond) setLook(day ? 1 : 0.75, day ? 1 : 0.55);
@@ -892,7 +893,7 @@ export function startFish() {
           const t = now - k * STEP;
           for (let i = school.length - 1; i >= 0; i--) {
             school[i].think(school, i, pointer, dt, t);
-            const [dx, dy] = water.at?.(school[i].x, school[i].y) ?? [0, 0];
+            const [dx, dy] = water.current.at?.(school[i].x, school[i].y) ?? [0, 0];
             school[i].move(w, h, t, { x: dx / 60, y: dy / 60 }); // px/s to px per (60 Hz) step
           }
         }
@@ -942,6 +943,7 @@ export function startFish() {
       let lag = 0;
       let prev = performance.now();
       const loop = (now: number) => {
+        if (signal.aborted) return;
         lag += now - prev;
         prev = now;
         if (lag >= STEP - 2) {
