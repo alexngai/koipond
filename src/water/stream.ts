@@ -7,7 +7,8 @@ import { stage } from './stage';
 
 export const MAX_STONES = 32; // matches stream.glsl
 export const MAX_POOLS = 16; // matches stream.glsl
-export const CURRENT = 0.35 * (1 + 0.5 * Math.random()); // cells per second, 0-50% faster on some visits; the shader's u_current
+export const USUAL = 0.35; // cells per second: the current at its least
+export const CURRENT = USUAL * (1 + 0.5 * Math.random()); // ... and on this visit, up to 50% faster; the shader's u_current
 const ALPHA = 0.8; // how much each boulder blocks the current; matches stream.glsl
 
 export type Stones = { data: Float32Array; count: number; w?: number; h?: number }; // x, y, radius, seed per boulder; the area they're spread over, in cells
@@ -34,7 +35,8 @@ export function placeStones(cell: number): Stones {
 // For the fish (fish.ts), kept up to date by scene.ts, all in CSS px with y down:
 // - the current, part of the water rather than of any one scene: how strong it is (0, still, to 1,
 //   the stream's full current; it fades with the water that has it), which way it runs (a unit
-//   vector) and its usual speed (px per second), how fast it flows at a point (px per second, at that
+//   vector) and its usual speed (px per second; `brisk`: against the least it runs, 1 to 1.5), how
+//   fast it flows at a point (px per second, at that
 //   strength), and the boulders it parts round, which make slack water behind them;
 // - how much the stream, the pond and the beach are showing (0-1), for the salmon, the koi and the
 //   beach's fish; whether it's day;
@@ -43,9 +45,9 @@ export function placeStones(cell: number): Stones {
 //   fish (glints); and the reef's coral colonies, for its damselfish;
 // - `generation`, which counts rerolls of the random layout, when the fish are made again too.
 type Point = { x: number; y: number };
-export type Current = { strength: number; downstream: Point; speed: number; at?: (x: number, y: number) => [number, number]; rocks: (Point & { r: number })[] };
+export type Current = { strength: number; downstream: Point; speed: number; brisk: number; at?: (x: number, y: number) => [number, number]; rocks: (Point & { r: number })[] };
 export const water: { current: Current; depth?: (x: number, y: number) => number; lift?: (x: number, y: number) => number; glints?: ImageBitmap | HTMLCanvasElement; colonies?: (Point & { r: number })[]; day: boolean; stream: number; pond: number; beach: number; generation: number } = {
-  current: { strength: 0, downstream: { x: 0, y: 0 }, speed: 1, rocks: [] },
+  current: { strength: 0, downstream: { x: 0, y: 0 }, speed: 1, brisk: 1, rocks: [] },
   day: true,
   stream: 0,
   pond: 0,

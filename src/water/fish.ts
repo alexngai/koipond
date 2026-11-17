@@ -286,11 +286,13 @@ class Fish {
   }
 
   // Its swimming time, which its tail beats by: it runs with how fast it swims through the water, so
-  // each beat carries it about as far (`period` is the beat at the speed it's tuned for). A fish
-  // holding its place in a current beats as hard as the current runs; one resting in slack water,
-  // slowly, but never under 0.4 of the pace: even barely moving, it keeps a lazy beat.
+  // each beat carries it about as far (`period` is the beat at the speed it's tuned for); never under
+  // 0.4 of the pace: even barely moving, it keeps a lazy beat. Holding its place in a current, it
+  // keeps beating against the stream, at about its cruising beat and quicker the brisker the stream,
+  // even in the slack water behind a boulder (where it barely swims through the water at all).
   beat(now: number) {
-    const pace = Math.max(0.4, (this.effort * this.speed) / (this.tuned || this.speed));
+    const holding = this.hold * water.current.strength * 0.7 * water.current.brisk;
+    const pace = Math.max(0.4, (this.effort * this.speed) / (this.tuned || this.speed), holding);
     if (this.lastNow) this.clock += (now - this.lastNow) * pace;
     this.lastNow = now;
     return this.clock;

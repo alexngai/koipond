@@ -7,7 +7,7 @@ import POND from './pond.glsl?raw';
 import BEACH from './beach.glsl?raw';
 import SURF_GLSL from './surf.glsl?raw';
 import GLINTS from './glints.glsl?raw';
-import { CURRENT, flow, water, placeStones, placePools, bubbles } from './stream';
+import { CURRENT, USUAL, flow, water, placeStones, placePools, bubbles } from './stream';
 import { placeReef, drawReef, drawReefHeight, placeReefSwell, reefBed } from './reef';
 import { lilies } from './pond';
 import { spray } from './beach';
@@ -186,6 +186,7 @@ export function startWater(start: { scene: Scene; time: Time; root: HTMLElement;
     const current = water.current;
     current.downstream = { x: DIR[0], y: -DIR[1] };
     current.speed = CURRENT * CELL;
+    current.brisk = CURRENT / USUAL;
     current.at = (x, y) => {
       const [vx, vy] = flow(STONES, POOLS, DIR, x / CELL, (stage.h - y) / CELL, performance.now() / 1000);
       return [vx * CELL * current.strength, -vy * CELL * current.strength];
