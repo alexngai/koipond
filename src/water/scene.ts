@@ -12,7 +12,7 @@ import { placeReef, drawReef, drawReefHeight, placeReefSwell, reefBed } from './
 import { lilies } from './pond';
 import { spray } from './beach';
 import { shore } from './shore';
-import { placeSurf, packSurf, buildSurf, groundAt, surfAt, TILT, WORLD_H, type SurfGrid, type Swell } from './surf';
+import { placeSurf, packSurf, buildSurf, groundAt, surfAt, worldH, TILT, type SurfGrid, type Swell } from './surf';
 import { quality } from './quality';
 import { stage } from './stage';
 
@@ -193,7 +193,7 @@ export function startWater(start: { scene: Scene; time: Time; root: HTMLElement;
     // Which surf grid a program reads (surf.glsl), and on which texture unit.
     const surfUniforms = (gl: WebGLRenderingContext, u: Record<string, WebGLUniformLocation | null>, g: SurfGrid, s: Swell, unit: number) => {
       gl.uniform1i(u.u_surfTex, unit);
-      gl.uniform4f(u.u_surfGrid, g.x0, g.y0, g.step, WORLD_H);
+      gl.uniform4f(u.u_surfGrid, g.x0, g.y0, g.step, worldH());
       gl.uniform4f(u.u_surfSize, g.nx, g.ny, s.period, s.seed);
       gl.uniform4f(u.u_surfFrame, g.frame.cx, g.frame.cy, g.frame.n[0], g.frame.n[1]);
     };
@@ -257,11 +257,11 @@ export function startWater(start: { scene: Scene; time: Time; root: HTMLElement;
     });
     let { surface, pads, flecks, reefFlecks, life } = extras();
     // Let the fish in the beach scene keep to the sea: how deep the water is at a point (CSS px).
-    water.depth = (x, y) => groundAt(flecks.grid, (x * WORLD_H) / stage.h, (y * WORLD_H) / stage.h).d;
+    water.depth = (x, y) => groundAt(flecks.grid, (x * worldH()) / stage.h, (y * worldH()) / stage.h).d;
     // ... and be seen through the waves as the seabed is (beach.glsl: shade()): lifted up the screen
     // by the height of the water over them, so they shift as each swell passes (CSS px).
     water.lift = (x, y) => {
-      const k = WORLD_H / stage.h; // m per px
+      const k = worldH() / stage.h; // m per px
       return (-TILT * surfAt(flecks.grid, SURF, x * k, y * k, performance.now() / 1000).z) / k;
     };
     let drawn = performance.now();

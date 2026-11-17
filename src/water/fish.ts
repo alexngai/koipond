@@ -282,7 +282,9 @@ class Fish {
   // Out of a current, only effort counts.
   beat(now: number) {
     const water = 1 + 0.6 * (Math.min(this.rush, 2) - 1);
-    if (this.lastNow) this.clock += (now - this.lastNow) * Math.max(0.7, (0.35 + 0.65 * Math.min(this.strain, 2)) * water);
+    // Each kind's tail beats at a period that goes by its size (a bigger fish's slower, more sweeping),
+    // and that's the size it looks: drawn smaller on a phone, it beats faster (stage.tempo).
+    if (this.lastNow) this.clock += (now - this.lastNow) * stage.tempo * Math.max(0.7, (0.35 + 0.65 * Math.min(this.strain, 2)) * water);
     this.lastNow = now;
     return this.clock;
   }

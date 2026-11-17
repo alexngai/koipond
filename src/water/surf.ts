@@ -26,9 +26,13 @@
 // - How it breaks depends on the slope it breaks on (the Iribarren number): a steep bar or reef face
 //   throws a plunging lip, a gentle slope spills.
 // All of it for three wave sizes, so each wave in a set can blend between them.
+import { stage } from './stage';
 const TAU = Math.PI * 2;
 const G = 9.81;
-export const WORLD_H = 260; // m of sea from the top of the screen to the bottom
+export const WORLD_H = 260; // m of sea from the top of the screen to the bottom (on a laptop's)
+// ... and on this one: more on a phone, where the scene is drawn smaller (stage.ts), so its waves,
+// particles and rocks shrink with the fish and the rest.
+export const worldH = () => WORLD_H / stage.zoom;
 const STEP = 4; // m between grid points
 const GAMMA = 0.78; // a wave breaks once it is taller than this much of the depth
 export const SIZES = [0.7, 1, 1.35]; // the wave sizes it is worked out for, times the swell's height
@@ -184,7 +188,7 @@ export type SurfGrid = ReturnType<typeof buildSurf>;
 // a screen w by h px: it reaches a little past the screen on every side, and well past it out to
 // sea, so the swell starts out in deep, even water and edges stay off screen.
 export function buildSurf(s: Swell, w: number, h: number, bed: Bed) {
-  const f = shoreFrame(s, (w * WORLD_H) / h, WORLD_H);
+  const f = shoreFrame(s, (w * worldH()) / h, worldH());
   const [su, sv] = [f.umax - f.umin, f.vmax - f.vmin];
   const x0 = f.umin - 0.2 * su - 30; // u of the first point
   const y0 = f.vmin - 0.35 * sv - 20; // v of the first row
@@ -459,7 +463,7 @@ export function surfAt(g: SurfGrid, s: Pick<Swell, 'period' | 'seed'>, sx: numbe
 // there (white swell, yellow spilling, orange plunging, cyan reforming), the way the waves run, and
 // where each size of wave first breaks (green small, yellow typical, red big).
 export function drawSurfDebug(ctx: CanvasRenderingContext2D, g: SurfGrid, s: Surf, t: number, h: number, ms: number) {
-  const px = h / WORLD_H; // px per m
+  const px = h / worldH(); // px per m
   const image = new ImageData(g.nx, g.ny);
   for (let p = 0; p < g.nx * g.ny; p++) {
     const d = g.depth[p];

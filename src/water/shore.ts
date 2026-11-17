@@ -1,7 +1,7 @@
 // Beach: life on and over the beach, on two canvases of its own: crabs on the sand (`low`, under the
 // white water), and now and then gulls flying over, with their shadows (`sky`, over everything).
 // Flat, like the rest: each part one colour, the shadows hard.
-import { groundAt, WORLD_H, type SurfGrid } from './surf';
+import { groundAt, worldH, type SurfGrid } from './surf';
 import { stage } from './stage';
 
 const TAU = Math.PI * 2;
@@ -38,7 +38,7 @@ export function shore(low: HTMLCanvasElement, sky: HTMLCanvasElement) {
   // Sand a crab can walk on: up the beach clear of the swash, off the rocks, on the screen.
   const sand = (x: number, y: number) => {
     if (!grid || x < 12 || x > w - 12 || y < 60 || y > h - 12) return false;
-    const g = groundAt(grid, (x * WORLD_H) / h, (y * WORLD_H) / h);
+    const g = groundAt(grid, (x * worldH()) / h, (y * worldH()) / h);
     return g.d < -1.5 && g.reef < 0.2;
   };
   const place = () => {
@@ -73,7 +73,7 @@ export function shore(low: HTMLCanvasElement, sky: HTMLCanvasElement) {
     const dpr = stage.dpr(1.5);
     w = stage.w;
     h = stage.h;
-    u = h / 800;
+    u = (h * stage.zoom) / 800; // (the window's height, drawn smaller on a phone: see worldH())
     for (const [c, x] of [
       [low, ltx],
       [sky, stx],
@@ -213,7 +213,7 @@ export function shore(low: HTMLCanvasElement, sky: HTMLCanvasElement) {
           if (sand(c.x + side[0] * (step + lead), c.y + side[1] * (step + lead))) {
             c.x += side[0] * step;
             c.y += side[1] * step;
-            c.gait += 26 * dt; // its legs a blur
+            c.gait += 26 * dt * stage.tempo; // its legs a blur
           } else {
             c.dir = -c.dir; // the sand ends: stop, and go back the other way
             c.walking = false;
@@ -260,7 +260,7 @@ export function shore(low: HTMLCanvasElement, sky: HTMLCanvasElement) {
           g.until = g.gliding ? rand(1, 3) : rand(0.8, 2);
           g.turn = rand(-0.08, 0.08);
         }
-        if (!g.gliding) g.beat += dt * 9;
+        if (!g.gliding) g.beat += dt * 9 * stage.tempo;
         const [c, sn] = [Math.cos(g.turn * dt), Math.sin(g.turn * dt)];
         [g.vx, g.vy] = [g.vx * c - g.vy * sn, g.vx * sn + g.vy * c];
         g.x += g.vx * dt;

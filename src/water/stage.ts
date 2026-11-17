@@ -27,4 +27,10 @@ export const stage = {
     return screen.height / zoom();
   },
   dpr: (cap: number) => Math.min(window.devicePixelRatio || 1, cap) * zoom(),
+  // How much faster a creature's own rhythms run (a tail's beat, a crab's legs, a gull's wings): each
+  // goes by its size, and that's the size it looks, so drawn smaller it moves like a smaller one.
+  // (The water's own time, its waves and current, is the same at any size, as seen from higher up.)
+  get tempo() {
+    return 1 / zoom();
+  },
 };
