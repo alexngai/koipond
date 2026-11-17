@@ -126,6 +126,19 @@ To try the extension: build, open `chrome://extensions`, turn on Developer mode,
 **Load unpacked** and pick `dist/`. After rebuilding, press the reload icon on its card. The first
 time a new tab opens, Chrome asks whether to keep the change: keep it.
 
+## Releasing the package
+
+`.github/workflows/release.yml` publishes `koipond-sim` to npm when a GitHub release is published.
+npm trusts that workflow (a trusted publisher), so it needs no token, and each version gets
+provenance. To release:
+
+1. In a pull request, raise the version: `npm version patch --no-git-tag-version` (or `minor`;
+   `prerelease --preid beta` for a beta, published as `next`, not `latest`). Merge it.
+2. Release it: `gh release create v0.1.1 --target main --generate-notes`, the tag matching the new
+   version. The workflow checks that it does, tests and builds it, and publishes.
+
+(The extension's own version, for the Chrome Web Store, is `public/manifest.json`'s.)
+
 ## Layout
 
 - `src/index.ts`: the package: `createPond()`, which makes the water's layers and starts the water
