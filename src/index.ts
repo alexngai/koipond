@@ -2,7 +2,7 @@
 // beach, by day or by night, with fish that swim away from the cursor, drawn in WebGL full window on
 // layers of its own.
 //
-//   import { createPond } from 'koipond';
+//   import { createPond } from 'koipond-sim';
 //   const pond = createPond({ scene: 'beach' });
 //   pond?.setTime('night');
 //
