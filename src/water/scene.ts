@@ -7,7 +7,7 @@ import POND from './pond.glsl?raw';
 import BEACH from './beach.glsl?raw';
 import SURF_GLSL from './surf.glsl?raw';
 import GLINTS from './glints.glsl?raw';
-import { CURRENT, USUAL, flow, water, placeStones, placePools, bubbles } from './stream';
+import { CURRENT, USUAL, flow, depthFast, water, placeStones, placePools, bubbles } from './stream';
 import { placeReef, drawReef, drawReefHeight, placeReefSwell, reefBed } from './reef';
 import { lilies } from './pond';
 import { spray } from './beach';
@@ -191,6 +191,8 @@ export function startWater(start: { scene: Scene; time: Time; root: HTMLElement;
       const [vx, vy] = flow(STONES, POOLS, DIR, x / CELL, (stage.h - y) / CELL, performance.now() / 1000);
       return [vx * CELL * current.strength, -vy * CELL * current.strength];
     };
+    // How deep the stream is there (0-1), for how far the fish's shadows fall.
+    water.bed = (x, y) => depthFast(STONES, POOLS, x / CELL, (stage.h - y) / CELL);
     // Which surf grid a program reads (surf.glsl), and on which texture unit.
     const surfUniforms = (gl: WebGLRenderingContext, u: Record<string, WebGLUniformLocation | null>, g: SurfGrid, s: Swell, unit: number) => {
       gl.uniform1i(u.u_surfTex, unit);

@@ -808,8 +808,9 @@ export function startFish(root: HTMLElement, signal: AbortSignal) {
   const canvas = root.querySelector<HTMLCanvasElement>('[data-boids]');
   const ctx = canvas?.getContext('2d');
   // Their shadows on the floor, cast the way the foam's are but shorter (they swim lower): drawn as
-  // silhouettes at half the resolution off the page (`shapes`), then blurred onto a canvas of their
-  // own beneath them. Where a canvas can't blur (Safari), at a fifth of it, stretched to soften them.
+  // silhouettes at half the resolution off the page (`shapes`), each where its shadow falls, then
+  // blurred onto a canvas of their own beneath them. Where a canvas can't blur (Safari), at a fifth
+  // of it, stretched to soften them.
   const shadows = root.querySelector<HTMLCanvasElement>('[data-fish-shadows]');
   const stx = shadows?.getContext('2d');
   const shapes = document.createElement('canvas');
@@ -892,8 +893,7 @@ export function startFish(root: HTMLElement, signal: AbortSignal) {
       for (let i = 0; i < Math.round(Math.min(12, Math.max(5, (w * h) / 130000))); i++) pond.push(new Koi(rand(0, w), rand(0, h)));
       for (const f of [...reef, ...run, ...pond]) f.initSegments();
     };
-    populate();
-    let generation = water.generation;
+    let generation = NaN; // so they're made on the first frame with a size to make them in (frame())
 
     let pointer: V | null = null;
     window.addEventListener('pointermove', (e) => (pointer = { x: e.clientX / stage.zoom, y: e.clientY / stage.zoom }), { passive: true, signal });
@@ -906,6 +906,7 @@ export function startFish(root: HTMLElement, signal: AbortSignal) {
     const frame = (now: number, steps = 1) => {
       const dt = Math.min((now - last) / 1000, 0.05 * steps) / steps; // s a step; no jump after the tab was hidden
       last = now;
+      if (!w || !h) return; // a window with no size yet (a hidden frame): nothing to draw on (drawImage() would throw, and stop them for good)
       // The reef fish in the ocean, the salmon in the stream, the koi in the pond: each school only
       // swims (and shows, fading) while its scene does.
       const reefWeight = Math.max(0, 1 - water.stream - water.pond - water.beach);
@@ -951,6 +952,12 @@ export function startFish(root: HTMLElement, signal: AbortSignal) {
           const shape = f.shape;
           if (lift) f.shape = shape.map((p) => ({ x: p.x, y: p.y + lift(p.x, p.y) }));
           f.draw(ctx);
+          // Its shadow: as far off as SHADOW in deep water (and in the reef and the pond, which have
+          // no depth to speak of), nearer in the stream's and the beach's shallows, where it swims
+          // nearer the bed: a quarter as far on the stream's shallowest (bed 0-1), and on the beach
+          // from a quarter on the sand up to all of it in 6 m of water (it runs out to 7 or 8 m).
+          const near = school === run && water.bed ? 0.25 + 0.75 * water.bed(f.x, f.y) : school === sea && water.depth ? Math.min(1, 0.25 + 0.125 * Math.max(0, water.depth(f.x, f.y))) : 1;
+          htx.setTransform(SHADOW.scale, 0, 0, SHADOW.scale, SHADOW.x * near * SHADOW.scale, SHADOW.y * near * SHADOW.scale);
           glowing = false;
           f.draw(htx);
           glowing = true;
@@ -958,10 +965,11 @@ export function startFish(root: HTMLElement, signal: AbortSignal) {
         }
       }
       ctx.globalAlpha = htx.globalAlpha = 1;
-      // The shadows: the silhouettes, cast and blurred, all one colour.
+      htx.setTransform(SHADOW.scale, 0, 0, SHADOW.scale, 0, 0);
+      // The shadows: the silhouettes, blurred, all one colour.
       stx.clearRect(0, 0, shadows.width, shadows.height);
       if (blurs) stx.filter = `blur(${SHADOW.blur * SHADOW.scale}px)`;
-      stx.drawImage(shapes, SHADOW.x * SHADOW.scale, SHADOW.y * SHADOW.scale);
+      stx.drawImage(shapes, 0, 0);
       if (blurs) stx.filter = 'none';
       stx.globalCompositeOperation = 'source-in';
       stx.fillStyle = `rgba(0, 0, 0, ${SHADOW.alpha})`;

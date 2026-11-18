@@ -43,10 +43,11 @@ export function placeStones(cell: number): Stones {
 // - how deep the beach's water is at a point (m) and how far its waves lift what's under them there
 //   (px), so its fish keep to the sea and are seen through the waves; the caustics to paint onto the
 //   fish (glints); and the reef's coral colonies, for its damselfish;
+// - how deep the stream is at a point (0 shallow to 1 deep), for how far its fish's shadows fall;
 // - `generation`, which counts rerolls of the random layout, when the fish are made again too.
 type Point = { x: number; y: number };
 export type Current = { strength: number; downstream: Point; speed: number; brisk: number; at?: (x: number, y: number) => [number, number]; rocks: (Point & { r: number })[] };
-export const water: { current: Current; depth?: (x: number, y: number) => number; lift?: (x: number, y: number) => number; glints?: ImageBitmap | HTMLCanvasElement; colonies?: (Point & { r: number })[]; day: boolean; stream: number; pond: number; beach: number; generation: number } = {
+export const water: { current: Current; depth?: (x: number, y: number) => number; bed?: (x: number, y: number) => number; lift?: (x: number, y: number) => number; glints?: ImageBitmap | HTMLCanvasElement; colonies?: (Point & { r: number })[]; day: boolean; stream: number; pond: number; beach: number; generation: number } = {
   current: { strength: 0, downstream: { x: 0, y: 0 }, speed: 1, brisk: 1, rocks: [] },
   day: true,
   stream: 0,
